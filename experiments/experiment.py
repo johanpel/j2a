@@ -16,7 +16,7 @@ class Experiment:
         self.impl = impl
 
     def __str__(self):
-        return 'Experiment{repeats: {}, threads: {}, jsons: {}, impl:{}}'.format(self.repeats, self.threads, self.jsons, self.impl)
+        return 'Experiment{{repeats: {}, threads: {}, jsons: {}, impl:{}}}'.format(self.repeats, self.threads, self.jsons, self.impl)
 
     def run(self):
         command = self.base + ' ' + ' '.join([
