@@ -9,6 +9,18 @@
 #include "battery.h"
 #include "utils.h"
 
+void PrintHeader(std::ostream* o) {
+  *o << "framework,";
+  *o << "api,";
+  *o << "allocated,";
+  *o << "max_values,";
+  *o << "num_jsons,";
+  *o << "bytes_in,";
+  *o << "bytes_out,";
+  *o << "time";
+  *o << '\n';
+}
+
 void PrintResult(std::ostream* o, const BatteryParserWorkload& in,
                  const BatteryParserResult& out) {
   *o << out.framework << ",";
@@ -36,7 +48,7 @@ auto main(int argc, char** argv) -> int {
   if (argc == 2) {
     values_end = std::strtoul(argv[1], nullptr, 10);
   }
-  size_t num_implementations = 12;
+  size_t num_implementations = 11;
 
   std::vector<size_t> values = {};
   for (size_t i = 0; static_cast<size_t>(std::pow(2, i)) <= values_end; i++) {
@@ -88,17 +100,22 @@ auto main(int argc, char** argv) -> int {
     // custom parsing functions
     std::cout << "Running custom STL impls..." << std::endl;
     outputs.push_back(STLParseBattery0(inputs[off + 7], expected_out_size));
-    auto fuck = STLParseBattery1(inputs[off + 8]);
-    outputs.push_back(fuck);
-    outputs.push_back(STLParseBattery2(inputs[off + 9]));
+    outputs.push_back(STLParseBattery1(inputs[off + 8]));
+    // outputs.push_back(STLParseBattery2(inputs[off + 9]));
 
     // parser generators
     std::cout << "Running ANTLR4 impls..." << std::endl;
-    outputs.push_back(ANTLRBatteryParse0(inputs[off + 10]));
+    outputs.push_back(ANTLRBatteryParse0(inputs[off + 9]));
 
     // parser combinators
     std::cout << "Running Spirit impls..." << std::endl;
-    outputs.push_back(SpiritBatteryParse0(inputs[off + 11]));
+    outputs.push_back(SpiritBatteryParse0(inputs[off + 10]));
+
+    // Clear inputs and outputs after parsing to save memory.
+    for (size_t i = 0; i < num_implementations; i++) {
+      inputs[off + i].Finish();
+      outputs[off + i].Finish();
+    }
   }
 
   std::cout << "Number of input data sets: " << inputs.size() << std::endl;
@@ -113,6 +130,7 @@ auto main(int argc, char** argv) -> int {
     o = &f;
   }
 
+  PrintHeader(o);
   for (int i = 0; i < num_implementations * values.size(); i++) {
     PrintResult(o, inputs[i], outputs[i]);
   }

@@ -18,7 +18,13 @@
 struct BatteryParserWorkload {
   size_t max_array_size = 1;
   size_t num_jsons = 1;
+  size_t num_bytes = 0;
   std::vector<char> bytes;
+
+  void Finish() {
+    num_bytes = bytes.size();
+    bytes = std::vector<char>();
+  }
 };
 
 struct BatteryParserResult {
@@ -32,6 +38,14 @@ struct BatteryParserResult {
   bool output_pre_allocated = false;
   std::vector<uint64_t> values;
   putong::SplitTimer<3> timer;
+  size_t num_bytes = 0;
+  size_t num_values = 0;
+
+  void Finish() {
+    num_values = values.size();
+    num_bytes = values.size() * sizeof(uint64_t);
+    values = std::vector<uint64_t>();
+  }
 };
 
 auto schema_battery(size_t max_array_size = 16) -> std::shared_ptr<arrow::Schema> {
@@ -586,10 +600,6 @@ auto SpiritBatteryParse0(const BatteryParserWorkload& data) -> BatteryParserResu
   result.timer.Start();
   result.values = std::vector<uint64_t>();
   result.timer.Split();
-
-  std::string test =
-      "{\"voltage\":[1,2]}\n"
-      "{\"voltage\":[3,4,5]}\n";
 
   if (!parse_battery(data.bytes.begin(), data.bytes.end(), &result.values)) {
     throw std::runtime_error("Spirit parsing error.");
