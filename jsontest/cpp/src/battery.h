@@ -55,13 +55,13 @@ auto schema_battery(size_t max_array_size = 16) -> std::shared_ptr<arrow::Schema
                     arrow::list(arrow::field("item", arrow::uint64(), false)
                                     ->WithMetadata(arrow::key_value_metadata({"illex_MIN", "illex_MAX"}, {"0", "2047"}))),
                     false)
-           ->WithMetadata(
-               arrow::key_value_metadata({"illex_MIN_LENGTH", "illex_MAX_LENGTH"}, {"1", std::to_string(max_array_size)}))});
+           ->WithMetadata(arrow::key_value_metadata({"illex_MIN_LENGTH", "illex_MAX_LENGTH"},
+                                                    {"1", std::to_string(max_array_size + 1)}))});
 }
 
 size_t get_battery_max_array_size(const arrow::Schema& schema) {
   auto max_val = schema.field(0)->metadata()->Get("illex_MAX_LENGTH");
-  return std::strtoul(max_val.ValueOrDie().c_str(), nullptr, 10);
+  return std::strtoul(max_val.ValueOrDie().c_str(), nullptr, 10) - 1;
 }
 
 // simdjson DOM style API

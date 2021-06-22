@@ -110,6 +110,7 @@ auto main(int argc, char** argv) -> int {
     JSONTEST_BENCH(SpiritBatteryParse0(inputs.back()));
 
     std::cout << std::endl;
+    // std::cout << std::string(workload.bytes.data(), workload.bytes.size()) << std::endl;
   }
 
   std::cout << "Number of input data sets: " << inputs.size() << std::endl;
