@@ -125,24 +125,32 @@ FetchContent_Declare(
         GIT_TAG v1.9.1)
 FetchContent_MakeAvailable(CLI11)
 
+########################################################################################################## fmt
+FetchContent_Declare(
+        fmt
+        GIT_REPOSITORY git@github.com:fmtlib/fmt.git
+        GIT_TAG 8.0.0)
+FetchContent_MakeAvailable(fmt)
+
 ########################################################################################################## targets
 
 add_compile_unit(
         NAME jsontest
         TYPE EXECUTABLE
         SRCS
-            src/main.cpp
-            ${ANTLR_Battery_CXX_OUTPUTS}
-            # src/schema.cpp
+        src/main.cpp
+        ${ANTLR_Battery_CXX_OUTPUTS}
+        # src/schema.cpp
         TSTS
-            test/test_arrow.cpp
+        test/test_arrow.cpp
         DEPS
-            simdjson
-            arrow_shared
-            spdlog::spdlog
-            illex::static
-            antlr4_static
-            CLI11::CLI11
+        simdjson
+        arrow_shared
+        spdlog::spdlog
+        illex::static
+        antlr4_static
+        CLI11::CLI11
+        fmt::fmt-header-only
 )
 
 compile_units()

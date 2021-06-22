@@ -88,6 +88,7 @@ inline auto SimdBatteryParse0(const BatteryParserWorkload& data) -> BatteryParse
   }
   result.timer.Split();
 
+  result.Finish();
   return result;
 }
 
@@ -118,6 +119,7 @@ inline auto SimdBatteryParse1(const BatteryParserWorkload& data, size_t alloc)
   }
   result.timer.Split();
 
+  result.Finish();
   return result;
 }
 
@@ -148,6 +150,7 @@ inline auto SimdBatteryParse2(const BatteryParserWorkload& data, size_t alloc)
   }
   result.timer.Split();
 
+  result.Finish();
   return result;
 }
 
@@ -177,6 +180,7 @@ inline auto RapidBatteryParse0(const BatteryParserWorkload& data) -> BatteryPars
   result.timer.Split();
   result.timer.Split();
 
+  result.Finish();
   return result;
 }
 
@@ -207,6 +211,7 @@ inline auto RapidBatteryParse1(const BatteryParserWorkload& data) -> BatteryPars
   result.timer.Split();
   result.timer.Split();
 
+  result.Finish();
   return result;
 }
 
@@ -283,6 +288,8 @@ inline auto RapidBatteryParse2(const BatteryParserWorkload& data) -> BatteryPars
   result.timer.Split();
 
   result.values = handler.result;
+
+  result.Finish();
   return result;
 }
 
@@ -364,6 +371,7 @@ inline auto RapidBatteryParse3(const BatteryParserWorkload& data, size_t size)
   result.timer.Split();
   result.values = handler.result;
 
+  result.Finish();
   return result;
 }
 
@@ -423,6 +431,7 @@ auto STLParseBattery0(const BatteryParserWorkload& data, size_t size)
   result.timer.Split();
   result.timer.Split();
 
+  result.Finish();
   return result;
 }
 
@@ -479,6 +488,7 @@ auto STLParseBattery1(const BatteryParserWorkload& data) -> BatteryParserResult 
   result.timer.Split();
   result.timer.Split();
 
+  result.Finish();
   return result;
 }
 
@@ -507,6 +517,8 @@ auto STLParseBattery2(const BatteryParserWorkload& data) -> BatteryParserResult 
   }
   result.timer.Split();
   result.timer.Split();
+
+  result.Finish();
   return result;
 }
 
@@ -556,6 +568,7 @@ auto ANTLRBatteryParse0(const BatteryParserWorkload& data) -> BatteryParserResul
   result.timer.Split();
   result.timer.Split();
 
+  result.Finish();
   return result;
 }
 
@@ -608,5 +621,6 @@ auto SpiritBatteryParse0(const BatteryParserWorkload& data) -> BatteryParserResu
   result.timer.Split();
   result.timer.Split();
 
+  result.Finish();
   return result;
 }

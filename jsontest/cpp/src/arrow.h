@@ -7,13 +7,12 @@
 
 #include "./battery.h"
 
-auto GenerateBatteryParserWorkload(const arrow::Schema& schema, size_t num_jsons = 1,
+auto GenerateBatteryParserWorkload(const arrow::Schema& schema, size_t approx_size,
                                    bool as_array = false, size_t capacity_padding = 0,
                                    int seed = 0) -> BatteryParserWorkload {
   BatteryParserWorkload result;
 
   result.max_array_size = get_battery_max_array_size(schema);
-  result.num_jsons = num_jsons;
 
   illex::GenerateOptions opts;
   opts.seed = seed;
@@ -22,10 +21,11 @@ auto GenerateBatteryParserWorkload(const arrow::Schema& schema, size_t num_jsons
   if (as_array) {
     result.bytes.push_back('[');
   }
-  for (size_t i = 0; i < num_jsons; i++) {
+  while (result.bytes.size() < approx_size) {
     auto str = gen.GetString();
+    result.num_jsons++;
     result.bytes.insert(result.bytes.end(), str.begin(), str.end());
-    if (as_array && (i != num_jsons - 1)) {
+    if (as_array && (result.bytes.size() + 2 >= approx_size)) {
       result.bytes.push_back(',');
     } else {
       result.bytes.push_back('\n');
