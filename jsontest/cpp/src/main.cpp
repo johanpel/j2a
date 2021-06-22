@@ -9,16 +9,16 @@
 #include "battery.h"
 #include "utils.h"
 
-void PrintResult(std::ostream* f, const BatteryParserWorkload& in,
+void PrintResult(std::ostream* o, const BatteryParserWorkload& in,
                  const BatteryParserResult& out) {
-  *f << out.framework << ",";
-  *f << out.api << ",";
-  *f << (out.output_pre_allocated ? "true" : "false") << ",";
-  *f << in.max_array_size << ",";
-  *f << in.num_jsons << ",";
-  *f << DataSizeOf(in.bytes) << ",";
-  *f << DataSizeOf(out.values) << ",";
-  *f << Sum(out.timer.seconds()) << std::endl;
+  *o << out.framework << ",";
+  *o << out.api << ",";
+  *o << (out.output_pre_allocated ? "true" : "false") << ",";
+  *o << in.max_array_size << ",";
+  *o << in.num_jsons << ",";
+  *o << DataSizeOf(in.bytes) << ",";
+  *o << DataSizeOf(out.values) << ",";
+  *o << Sum(out.timer.seconds()) << std::endl;
 }
 
 auto main(int argc, char** argv) -> int {
@@ -32,14 +32,6 @@ auto main(int argc, char** argv) -> int {
       ->default_val(16);
   app.add_option("o,-o", output_file, "CSV output file. If not set, print to stdout.");
   CLI11_PARSE(app, argc, argv);
-
-  std::ostream* o;
-  if (!output_file.empty()) {
-    std::ofstream f(output_file);
-    o = &f;
-  } else {
-    o = &std::cout;
-  }
 
   if (argc == 2) {
     values_end = std::strtoul(argv[1], nullptr, 10);
@@ -65,7 +57,7 @@ auto main(int argc, char** argv) -> int {
     putong::Timer t_gen(true);
     // create workload
     auto schema = schema_battery(max_num_values);
-    auto workload = GenerateBatteryParserWorkload(*schema, num_jsons, false, false,
+    auto workload = GenerateBatteryParserWorkload(*schema, num_jsons, false,
                                                   simdjson::SIMDJSON_PADDING);
 
     t_gen.Stop();
@@ -79,38 +71,47 @@ auto main(int argc, char** argv) -> int {
       inputs.push_back(workload);
     }
 
-    // json parsing libs
-
+    // Run experiments
     std::cout << "Running simdjson impls..." << std::endl;
-    outputs.push_back(SimdBatteryParse0(inputs[0]));
-    size_t expected_out_size = outputs[0].values.size();
-    outputs.push_back(SimdBatteryParse1(inputs[1], expected_out_size));
-    outputs.push_back(SimdBatteryParse2(inputs[2], expected_out_size));
+    size_t off = num_implementations * iv;
+    outputs.push_back(SimdBatteryParse0(inputs[off + 0]));
+    size_t expected_out_size = outputs[off + 0].values.size();
+    outputs.push_back(SimdBatteryParse1(inputs[off + 1], expected_out_size));
+    outputs.push_back(SimdBatteryParse2(inputs[off + 2], expected_out_size));
 
     std::cout << "Running RapidJSON impls..." << std::endl;
-    outputs.push_back(RapidBatteryParse0(inputs[3]));
-    outputs.push_back(RapidBatteryParse1(inputs[4]));
-    outputs.push_back(RapidBatteryParse2(inputs[5]));
-    outputs.push_back(RapidBatteryParse3(inputs[6], expected_out_size));
+    outputs.push_back(RapidBatteryParse0(inputs[off + 3]));
+    outputs.push_back(RapidBatteryParse1(inputs[off + 4]));
+    outputs.push_back(RapidBatteryParse2(inputs[off + 5]));
+    outputs.push_back(RapidBatteryParse3(inputs[off + 6], expected_out_size));
 
     // custom parsing functions
     std::cout << "Running custom STL impls..." << std::endl;
-    outputs.push_back(STLParseBattery0(inputs[7], expected_out_size));
-    outputs.push_back(STLParseBattery1(inputs[8]));
-    outputs.push_back(STLParseBattery2(inputs[9]));
+    outputs.push_back(STLParseBattery0(inputs[off + 7], expected_out_size));
+    auto fuck = STLParseBattery1(inputs[off + 8]);
+    outputs.push_back(fuck);
+    outputs.push_back(STLParseBattery2(inputs[off + 9]));
 
     // parser generators
     std::cout << "Running ANTLR4 impls..." << std::endl;
-    outputs.push_back(ANTLRBatteryParse0(inputs[10]));
+    outputs.push_back(ANTLRBatteryParse0(inputs[off + 10]));
 
     // parser combinators
     std::cout << "Running Spirit impls..." << std::endl;
-    outputs.push_back(SpiritBatteryParse0(inputs[11]));
+    outputs.push_back(SpiritBatteryParse0(inputs[off + 11]));
   }
 
   std::cout << "Number of input data sets: " << inputs.size() << std::endl;
   std::cout << "Number of output data sets: " << outputs.size() << std::endl;
   std::cout << "Number of max values: " << values.size() << std::endl;
+
+  std::ostream* o = &std::cout;
+  std::ofstream f;
+
+  if (!output_file.empty()) {
+    f.open(output_file);
+    o = &f;
+  }
 
   for (int i = 0; i < num_implementations * values.size(); i++) {
     PrintResult(o, inputs[i], outputs[i]);

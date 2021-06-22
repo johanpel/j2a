@@ -8,9 +8,8 @@
 #include "./battery.h"
 
 auto GenerateBatteryParserWorkload(const arrow::Schema& schema, size_t num_jsons = 1,
-                                   bool terminate = false, bool as_array = false,
-                                   size_t capacity_padding = 0, int seed = 0)
-    -> BatteryParserWorkload {
+                                   bool as_array = false, size_t capacity_padding = 0,
+                                   int seed = 0) -> BatteryParserWorkload {
   BatteryParserWorkload result;
 
   result.max_array_size = get_battery_max_array_size(schema);

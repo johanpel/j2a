@@ -97,6 +97,7 @@ inline auto SimdBatteryParse1(const BatteryParserWorkload& data, size_t alloc)
   size_t i = 0;
   for (auto obj : objects) {
     for (auto elem : obj["voltage"]) {
+      assert(i < alloc);
       result.values[i] = elem.get_uint64();
       i++;
     }
