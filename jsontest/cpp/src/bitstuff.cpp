@@ -32,8 +32,7 @@ void print(const std::string& prefix, uint64_t value) {
 template <size_t PrefixSize = 16>
 void print(const std::string& prefix, const std::string& value) {
   assert(value.length() == 64);
-  std::cout << std::setw(PrefixSize) << prefix << " : " << ToString(value.data())
-            << std::endl;
+  std::cout << std::setw(PrefixSize) << prefix << " : " << ToString(value.data()) << std::endl;
 }
 
 auto ByteCompare(const char chars[64], char cmp) -> uint64_t {
@@ -55,8 +54,7 @@ auto CarrylessMultiply(uint64_t a, uint64_t b) -> uint64_t {
 }
 
 auto bitstuff() -> int {
-  std::string json =
-      R"({ "\\\"Nam[{": [ 116,"\\\\" , 234, "true", false ], "t":"\\\"" })";
+  std::string json = R"({ "\\\"Nam[{": [ 116,"\\\\" , 234, "true", false ], "t":"\\\"" })";
 
   constexpr uint64_t even = 0x5555555555555555ul;
   constexpr uint64_t odd = 0xAAAAAAAAAAAAAAAAul;

@@ -24,9 +24,7 @@ auto DOMPointerGenerator::VisitType(const arrow::DataType& type) -> Status {
   return Status::OK;
 }
 
-auto AppendInt(arrow::UInt64Builder* bld, uint64_t val) -> arrow::Status {
-  return arrow::Status::OK();
-}
+auto AppendInt(arrow::UInt64Builder* bld, uint64_t val) -> arrow::Status { return arrow::Status::OK(); }
 
 auto DOMPointerGenerator::Visit(const arrow::UInt64Type& type) -> arrow::Status {
   auto builder = std::make_shared<arrow::UInt64Builder>();
@@ -51,8 +49,7 @@ auto DOMPointerGenerator::Visit(const arrow::ListType& type) -> arrow::Status {
 
   // Move to the child node that was appended.
   // Construct the list builder, taking the child node builder.
-  this_node_ref.builder = std::make_shared<arrow::ListBuilder>(
-      arrow::default_memory_pool(), (++iter)->builder);
+  this_node_ref.builder = std::make_shared<arrow::ListBuilder>(arrow::default_memory_pool(), (++iter)->builder);
 
   return arrow::Status::OK();
 }
@@ -81,8 +78,8 @@ auto DOMPointerGenerator::Visit(const arrow::StructType& type) -> arrow::Status 
   }
 
   // Create the struct builder and place it on the current node.
-  this_node_ref.builder = std::make_shared<arrow::StructBuilder>(
-      arrow::struct_(type.fields()), arrow::default_memory_pool(), child_builders);
+  this_node_ref.builder =
+      std::make_shared<arrow::StructBuilder>(arrow::struct_(type.fields()), arrow::default_memory_pool(), child_builders);
 
   return arrow::Status::OK();
 }
@@ -97,8 +94,7 @@ auto DOMPointerGenerator::ToString() const -> std::string {
   }
   for (const auto& node : nodes_) {
     ss << std::left << std::setw(longest) << node.name << " : "
-       << (node.builder == nullptr ? "nullptr" : node.builder->type()->name())
-       << std::endl;
+       << (node.builder == nullptr ? "nullptr" : node.builder->type()->name()) << std::endl;
   }
   return ss.str();
 }

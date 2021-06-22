@@ -8,6 +8,7 @@
 #include <boost/spirit/home/x3.hpp>
 #include <charconv>
 #include <iostream>
+#include <numeric>
 #include <utility>
 
 #include "./generic.h"
@@ -29,9 +30,7 @@ struct BatteryParserWorkload {
 
 struct BatteryParserResult {
   BatteryParserResult(std::string framework, std::string api, bool pre_alloc)
-      : framework(std::move(framework)),
-        api(std::move(api)),
-        output_pre_allocated(pre_alloc) {}
+      : framework(std::move(framework)), api(std::move(api)), output_pre_allocated(pre_alloc) {}
 
   std::string framework = "null";
   std::string api = "null";
@@ -40,8 +39,10 @@ struct BatteryParserResult {
   putong::SplitTimer<3> timer;
   size_t num_bytes = 0;
   size_t num_values = 0;
+  uint64_t checksum = 0;
 
   void Finish() {
+    checksum = std::accumulate(values.begin(), values.end(), 0UL);
     num_values = values.size();
     num_bytes = values.size() * sizeof(uint64_t);
     values = std::vector<uint64_t>();
@@ -52,12 +53,10 @@ auto schema_battery(size_t max_array_size = 16) -> std::shared_ptr<arrow::Schema
   return arrow::schema(
       {arrow::field("voltage",
                     arrow::list(arrow::field("item", arrow::uint64(), false)
-                                    ->WithMetadata(arrow::key_value_metadata(
-                                        {"illex_MIN", "illex_MAX"}, {"0", "2047"}))),
+                                    ->WithMetadata(arrow::key_value_metadata({"illex_MIN", "illex_MAX"}, {"0", "2047"}))),
                     false)
            ->WithMetadata(
-               arrow::key_value_metadata({"illex_MIN_LENGTH", "illex_MAX_LENGTH"},
-                                         {"1", std::to_string(max_array_size)}))});
+               arrow::key_value_metadata({"illex_MIN_LENGTH", "illex_MAX_LENGTH"}, {"1", std::to_string(max_array_size)}))});
 }
 
 size_t get_battery_max_array_size(const arrow::Schema& schema) {
@@ -74,8 +73,7 @@ inline auto SimdBatteryParse0(const BatteryParserWorkload& data) -> BatteryParse
   result.timer.Split();
 
   simdjson::dom::parser parser;
-  auto objects =
-      parser.parse_many(data.bytes.data(), data.bytes.size(), data.bytes.capacity());
+  auto objects = parser.parse_many(data.bytes.data(), data.bytes.size(), data.bytes.capacity());
   if (objects.error()) {
     std::cerr << simdjson::error_message(objects.error()) << std::endl;
   }
@@ -93,8 +91,7 @@ inline auto SimdBatteryParse0(const BatteryParserWorkload& data) -> BatteryParse
 }
 
 // simdjson DOM style API pre allocated destination
-inline auto SimdBatteryParse1(const BatteryParserWorkload& data, size_t alloc)
-    -> BatteryParserResult {
+inline auto SimdBatteryParse1(const BatteryParserWorkload& data, size_t alloc) -> BatteryParserResult {
   BatteryParserResult result("simdjson", "DOM", true);
 
   result.timer.Start();
@@ -102,8 +99,7 @@ inline auto SimdBatteryParse1(const BatteryParserWorkload& data, size_t alloc)
   result.timer.Split();
 
   simdjson::dom::parser parser;
-  auto objects =
-      parser.parse_many(data.bytes.data(), data.bytes.size(), data.bytes.capacity());
+  auto objects = parser.parse_many(data.bytes.data(), data.bytes.size(), data.bytes.capacity());
   if (objects.error()) {
     std::cerr << simdjson::error_message(objects.error()) << std::endl;
   }
@@ -124,16 +120,14 @@ inline auto SimdBatteryParse1(const BatteryParserWorkload& data, size_t alloc)
 }
 
 // simdjson dom style API pre allocated destination, not using keys
-inline auto SimdBatteryParse2(const BatteryParserWorkload& data, size_t alloc)
-    -> BatteryParserResult {
+inline auto SimdBatteryParse2(const BatteryParserWorkload& data, size_t alloc) -> BatteryParserResult {
   BatteryParserResult result("simdjson", "DOM (no keys)", true);
   result.timer.Start();
   result.values = std::vector<uint64_t>(alloc);
   result.timer.Split();
 
   simdjson::dom::parser parser;
-  auto objects =
-      parser.parse_many(data.bytes.data(), data.bytes.size(), data.bytes.capacity());
+  auto objects = parser.parse_many(data.bytes.data(), data.bytes.size(), data.bytes.capacity());
   if (objects.error()) {
     std::cerr << simdjson::error_message(objects.error()) << std::endl;
   }
@@ -196,8 +190,7 @@ inline auto RapidBatteryParse1(const BatteryParserWorkload& data) -> BatteryPars
 
   while (stream.Tell() != data.bytes.size() - 1) {
     // doc.ParseInsitu<rapidjson::kParseStopWhenDoneFlag>(const_cast<char*>(data.bytes.data()));
-    doc.ParseStream<rapidjson::kParseStopWhenDoneFlag | rapidjson::kParseInsituFlag>(
-        stream);
+    doc.ParseStream<rapidjson::kParseStopWhenDoneFlag | rapidjson::kParseInsituFlag>(stream);
     if (doc.HasParseError()) {
       std::cout << "RapidJSON error: " << doc.GetParseError() << std::endl;
       break;
@@ -278,8 +271,7 @@ inline auto RapidBatteryParse2(const BatteryParserWorkload& data) -> BatteryPars
     // doc.ParseInsitu<rapidjson::kParseStopWhenDoneFlag>(const_cast<char*>(data.bytes.data()));
     auto parse_result = reader.Parse<rapidjson::kParseStopWhenDoneFlag>(stream, handler);
     if (parse_result.IsError()) {
-      std::cout << "RapidJSON error at: " << stream.Tell()
-                << " ec:" << parse_result.Code() << std::endl;
+      std::cout << "RapidJSON error at: " << stream.Tell() << " ec:" << parse_result.Code() << std::endl;
       break;
     }
   }
@@ -295,8 +287,7 @@ inline auto RapidBatteryParse2(const BatteryParserWorkload& data) -> BatteryPars
 
 class FixedSizeBatteryHandler {
  public:
-  FixedSizeBatteryHandler(size_t pre_alloc = 0)
-      : result(std::vector<uint64_t>(pre_alloc)) {}
+  FixedSizeBatteryHandler(size_t pre_alloc = 0) : result(std::vector<uint64_t>(pre_alloc)) {}
 
   bool Null() {
     std::cerr << "Unexpected null." << std::endl;
@@ -347,8 +338,7 @@ class FixedSizeBatteryHandler {
 };
 
 // rapidjson sax api pre allocated
-inline auto RapidBatteryParse3(const BatteryParserWorkload& data, size_t size)
-    -> BatteryParserResult {
+inline auto RapidBatteryParse3(const BatteryParserWorkload& data, size_t size) -> BatteryParserResult {
   BatteryParserResult result("RapidJSON", "SAX", true);
   result.timer.Start();
   FixedSizeBatteryHandler handler(size);
@@ -361,8 +351,7 @@ inline auto RapidBatteryParse3(const BatteryParserWorkload& data, size_t size)
     // doc.ParseInsitu<rapidjson::kParseStopWhenDoneFlag>(const_cast<char*>(data.bytes.data()));
     auto parse_result = reader.Parse<rapidjson::kParseStopWhenDoneFlag>(stream, handler);
     if (parse_result.IsError()) {
-      std::cout << "RapidJSON error at: " << stream.Tell()
-                << " ec:" << parse_result.Code() << std::endl;
+      std::cout << "RapidJSON error at: " << stream.Tell() << " ec:" << parse_result.Code() << std::endl;
       break;
     }
   }
@@ -378,15 +367,13 @@ inline auto RapidBatteryParse3(const BatteryParserWorkload& data, size_t size)
 // assume no unnecessary whitespaces anywhere, e.g. minified jsons
 // assume ndjson
 // assume output size known.
-auto STLParseBattery0(const BatteryParserWorkload& data, size_t size)
-    -> BatteryParserResult {
+auto STLParseBattery0(const BatteryParserWorkload& data, size_t size) -> BatteryParserResult {
   BatteryParserResult result("Custom", "null", true);
 
   result.timer.Start();
   result.values = std::vector<uint64_t>(size);
   const char* battery_header = "{\"voltage\":[";
-  const auto max_uint64_len =
-      std::to_string(std::numeric_limits<uint64_t>::max()).length();
+  const auto max_uint64_len = std::to_string(std::numeric_limits<uint64_t>::max()).length();
 
   const char* pos = data.bytes.data();
   const char* end = pos + data.bytes.size();
@@ -407,9 +394,8 @@ auto STLParseBattery0(const BatteryParserWorkload& data, size_t size)
         default:
           break;
         case std::errc::invalid_argument:
-          throw std::runtime_error(
-              std::string("Battery voltage values contained invalid value: ") +
-              std::string(pos, max_uint64_len));
+          throw std::runtime_error(std::string("Battery voltage values contained invalid value: ") +
+                                   std::string(pos, max_uint64_len));
         case std::errc::result_out_of_range:
           throw std::runtime_error("Battery voltage value out of uint64_t range.");
       }
@@ -443,8 +429,7 @@ auto STLParseBattery1(const BatteryParserWorkload& data) -> BatteryParserResult 
   result.timer.Start();
   result.values = std::vector<uint64_t>();
   const char* battery_header = "{\"voltage\":[";
-  const auto max_uint64_len =
-      std::to_string(std::numeric_limits<uint64_t>::max()).length();
+  const auto max_uint64_len = std::to_string(std::numeric_limits<uint64_t>::max()).length();
 
   const char* pos = data.bytes.data();
   const char* end = pos + data.bytes.size();
@@ -464,9 +449,8 @@ auto STLParseBattery1(const BatteryParserWorkload& data) -> BatteryParserResult 
         default:
           break;
         case std::errc::invalid_argument:
-          throw std::runtime_error(
-              std::string("Battery voltage values contained invalid value: ") +
-              std::string(pos, max_uint64_len));
+          throw std::runtime_error(std::string("Battery voltage values contained invalid value: ") +
+                                   std::string(pos, max_uint64_len));
         case std::errc::result_out_of_range:
           throw std::runtime_error("Battery voltage value out of uint64_t range.");
       }
@@ -546,17 +530,14 @@ auto ANTLRBatteryParse0(const BatteryParserWorkload& data) -> BatteryParserResul
       auto text = child->getText();
       if (text != ",") {
         uint64_t value = 0;
-        auto val_result =
-            std::from_chars(text.data(), text.data() + text.length(), value);
+        auto val_result = std::from_chars(text.data(), text.data() + text.length(), value);
         switch (val_result.ec) {
           default:
             break;
           case std::errc::invalid_argument:
-            throw std::runtime_error(
-                std::string("Battery voltage values contained invalid value: ") + text);
+            throw std::runtime_error(std::string("Battery voltage values contained invalid value: ") + text);
           case std::errc::result_out_of_range:
-            throw std::runtime_error("Battery voltage value " + text +
-                                     " out of uint64_t range.");
+            throw std::runtime_error("Battery voltage value " + text + " out of uint64_t range.");
         }
         // std::cout << text << " ";
         result.values.push_back(value);
@@ -587,8 +568,7 @@ auto parse_battery(Iterator first, Iterator last, std::vector<uint64_t>* dest) -
   auto push_back = std::bind(append_vector(), std::placeholders::_1, dest);
 
   auto header = x3::lit("{\"voltage\":[");
-  auto array = x3::uint64[push_back] >>
-               *(x3::char_(',') >> x3::uint64[push_back]);  // uint64's separated by ,
+  auto array = x3::uint64[push_back] >> *(x3::char_(',') >> x3::uint64[push_back]);  // uint64's separated by ,
   auto footer = x3::lit("]}\n");
   auto object = header >> array >> footer;
   auto grammar = *object >> x3::eoi;  // objects separated by newline

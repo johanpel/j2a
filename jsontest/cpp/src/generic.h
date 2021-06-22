@@ -2,12 +2,7 @@
 
 #include <charconv>
 
-enum class ErrorCode {
-  SUCCESS = 0,
-  INVALID_ARGUMENT,
-  VALUE_OUT_OF_RANGE,
-  UNEXPECTED_ARRAY_VALUE_SEPARATOR
-};
+enum class ErrorCode { SUCCESS = 0, INVALID_ARGUMENT, VALUE_OUT_OF_RANGE, UNEXPECTED_ARRAY_VALUE_SEPARATOR };
 
 auto ToString(ErrorCode ec) -> std::string {
   switch (ec) {
@@ -32,8 +27,7 @@ auto ToString(ErrorCode ec) -> std::string {
  * \return An error code indicating SUCCESS or some type of failure.
  */
 template <typename T>
-inline auto ParseArrayPrim(const char* start, const char* end, const char** next,
-                           std::vector<T>* out) -> ErrorCode {
+inline auto ParseArrayPrim(const char* start, const char* end, const char** next, std::vector<T>* out) -> ErrorCode {
   while (start != end) {
     T val = 0;
     auto fcr = std::from_chars<T>(start, end, val);
