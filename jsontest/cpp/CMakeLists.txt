@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.17)
+cmake_minimum_required(VERSION 3.16)
 
 project(jsontest
         VERSION 0.0.0
@@ -74,7 +74,7 @@ FetchContent_MakeAvailable(spdlog)
 
 ########################################################################################################## putong
 FetchContent_Declare(putong
-        GIT_REPOSITORY /home/johan/workspace/tud/putong
+        GIT_REPOSITORY https://github.com/abs-tudelft/putong.git
         GIT_TAG master)
 FetchContent_MakeAvailable(putong)
 
