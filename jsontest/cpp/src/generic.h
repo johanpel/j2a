@@ -15,6 +15,7 @@ auto ToString(ErrorCode ec) -> std::string {
     case ErrorCode::UNEXPECTED_ARRAY_VALUE_SEPARATOR:
       return "unexpected array value separator";
   }
+  return "unexpected error code";
 }
 
 /**

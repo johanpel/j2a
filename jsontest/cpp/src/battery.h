@@ -32,18 +32,26 @@ struct BatteryParserResult {
   BatteryParserResult(std::string framework, std::string api, bool pre_alloc)
       : framework(std::move(framework)), api(std::move(api)), output_pre_allocated(pre_alloc) {}
 
+  // Impl. properties
   std::string framework = "null";
   std::string api = "null";
   bool output_pre_allocated = false;
+
+  // Arrow buffers:
   std::vector<uint64_t> values;
+  std::vector<int32_t> offsets;  // Arrow uses int32_t for offsets O_o
+
+  // Statistics
   putong::SplitTimer<3> timer;
   size_t num_bytes = 0;
   size_t num_values = 0;
+  size_t num_offsets = 0;
   uint64_t checksum = 0;
 
   void Finish() {
-    checksum = std::accumulate(values.begin(), values.end(), 0UL);
+    checksum = std::accumulate(values.begin(), values.end(), 0UL) + std::accumulate(offsets.begin(), offsets.end(), 0UL);
     num_values = values.size();
+    num_offsets = offsets.size();
     num_bytes = values.size() * sizeof(uint64_t);
     values = std::vector<uint64_t>();
   }
@@ -70,6 +78,7 @@ inline auto SimdBatteryParse0(const BatteryParserWorkload& data) -> BatteryParse
 
   result.timer.Start();
   result.values = std::vector<uint64_t>();
+  result.offsets = std::vector<int32_t>();
   result.timer.Split();
 
   simdjson::dom::parser parser;
@@ -80,10 +89,15 @@ inline auto SimdBatteryParse0(const BatteryParserWorkload& data) -> BatteryParse
   result.timer.Split();
 
   for (auto obj : objects) {
+    // Push back offset for this object.
+    result.offsets.push_back(static_cast<int32_t>(result.values.size()));
     for (auto elem : obj["voltage"]) {
       result.values.push_back(elem.get_uint64());
     }
   }
+  // Push back end offset.
+  result.offsets.push_back(static_cast<int32_t>(result.values.size()));
+
   result.timer.Split();
 
   result.Finish();
@@ -91,11 +105,12 @@ inline auto SimdBatteryParse0(const BatteryParserWorkload& data) -> BatteryParse
 }
 
 // simdjson DOM style API pre allocated destination
-inline auto SimdBatteryParse1(const BatteryParserWorkload& data, size_t alloc) -> BatteryParserResult {
+inline auto SimdBatteryParse1(const BatteryParserWorkload& data, size_t alloc_v, size_t alloc_o) -> BatteryParserResult {
   BatteryParserResult result("simdjson", "DOM", true);
 
   result.timer.Start();
-  result.values = std::vector<uint64_t>(alloc);
+  result.offsets = std::vector<int32_t>(alloc_o);
+  result.values = std::vector<uint64_t>(alloc_v);
   result.timer.Split();
 
   simdjson::dom::parser parser;
@@ -105,14 +120,21 @@ inline auto SimdBatteryParse1(const BatteryParserWorkload& data, size_t alloc) -
   }
   result.timer.Split();
 
-  size_t i = 0;
+  size_t values_idx = 0;
+  size_t offsets_idx = 0;
+
   for (auto obj : objects) {
+    result.offsets[offsets_idx] = static_cast<int32_t>(values_idx);
+    offsets_idx++;
     for (auto elem : obj["voltage"]) {
-      assert(i < alloc);
-      result.values[i] = elem.get_uint64();
-      i++;
+      assert(values_idx < alloc_v);
+      result.values[values_idx] = elem.get_uint64();
+      values_idx++;
     }
   }
+  // last offset
+  result.offsets[offsets_idx] = static_cast<int32_t>(values_idx);
+
   result.timer.Split();
 
   result.Finish();
@@ -120,10 +142,11 @@ inline auto SimdBatteryParse1(const BatteryParserWorkload& data, size_t alloc) -
 }
 
 // simdjson dom style API pre allocated destination, not using keys
-inline auto SimdBatteryParse2(const BatteryParserWorkload& data, size_t alloc) -> BatteryParserResult {
+inline auto SimdBatteryParse2(const BatteryParserWorkload& data, size_t alloc_v, size_t alloc_o) -> BatteryParserResult {
   BatteryParserResult result("simdjson", "DOM (no keys)", true);
   result.timer.Start();
-  result.values = std::vector<uint64_t>(alloc);
+  result.offsets = std::vector<int32_t>(alloc_o);
+  result.values = std::vector<uint64_t>(alloc_v);
   result.timer.Split();
 
   simdjson::dom::parser parser;
@@ -133,15 +156,21 @@ inline auto SimdBatteryParse2(const BatteryParserWorkload& data, size_t alloc) -
   }
   result.timer.Split();
 
-  size_t i = 0;
+  size_t values_idx = 0;
+  size_t offsets_idx = 0;
   for (auto elem : objects) {
+    result.offsets[offsets_idx] = static_cast<int32_t>(values_idx);
+    offsets_idx++;
     auto obj = elem.get_object().value_unsafe();
     auto arr = obj.begin().value().get_array();
     for (auto e : arr) {
-      result.values[i] = e.get_uint64();
-      i++;
+      result.values[values_idx] = e.get_uint64();
+      values_idx++;
     }
   }
+  // last offset
+  result.offsets[offsets_idx] = static_cast<int32_t>(values_idx);
+
   result.timer.Split();
 
   result.Finish();
@@ -152,6 +181,7 @@ inline auto SimdBatteryParse2(const BatteryParserWorkload& data, size_t alloc) -
 inline auto RapidBatteryParse0(const BatteryParserWorkload& data) -> BatteryParserResult {
   BatteryParserResult result("RapidJSON", "DOM", false);
   result.timer.Start();
+  result.offsets = std::vector<int32_t>();
   result.values = std::vector<uint64_t>();
   result.timer.Split();
 
@@ -166,10 +196,12 @@ inline auto RapidBatteryParse0(const BatteryParserWorkload& data) -> BatteryPars
       break;
     }
     auto array = doc.GetObject()["voltage"].GetArray();
+    result.offsets.push_back(static_cast<int32_t>(result.values.size()));
     for (auto& e : array) {
       result.values.push_back(e.GetInt64());
     }
   }
+  result.offsets.push_back(static_cast<int32_t>(result.values.size()));
 
   result.timer.Split();
   result.timer.Split();
@@ -182,6 +214,7 @@ inline auto RapidBatteryParse0(const BatteryParserWorkload& data) -> BatteryPars
 inline auto RapidBatteryParse1(const BatteryParserWorkload& data) -> BatteryParserResult {
   BatteryParserResult result("RapidJSON", "DOM (in situ)", false);
   result.timer.Start();
+  result.offsets = std::vector<int32_t>();
   result.values = std::vector<uint64_t>();
   result.timer.Split();
 
@@ -196,10 +229,12 @@ inline auto RapidBatteryParse1(const BatteryParserWorkload& data) -> BatteryPars
       break;
     }
     auto array = doc.GetObject()["voltage"].GetArray();
+    result.offsets.push_back(static_cast<int32_t>(result.values.size()));
     for (const auto& e : array) {
       result.values.push_back(e.GetInt64());
     }
   }
+  result.offsets.push_back(static_cast<int32_t>(result.values.size()));
 
   result.timer.Split();
   result.timer.Split();
@@ -254,7 +289,8 @@ class RapidBatteryHandler {
   bool StartArray() { return true; }
   bool EndArray(rapidjson::SizeType elementCount) { return true; }
 
-  std::vector<uint64_t> result;
+  std::vector<int32_t> offsets;
+  std::vector<uint64_t> values;
 };
 
 // rapidjson sax api
@@ -338,10 +374,10 @@ class FixedSizeBatteryHandler {
 };
 
 // rapidjson sax api pre allocated
-inline auto RapidBatteryParse3(const BatteryParserWorkload& data, size_t size) -> BatteryParserResult {
+inline auto RapidBatteryParse3(const BatteryParserWorkload& data, size_t alloc_v, size_t alloc_o) -> BatteryParserResult {
   BatteryParserResult result("RapidJSON", "SAX", true);
   result.timer.Start();
-  FixedSizeBatteryHandler handler(size);
+  FixedSizeBatteryHandler handler(alloc_v);
   result.timer.Split();
 
   rapidjson::InsituStringStream stream(const_cast<char*>(data.bytes.data()));
@@ -367,11 +403,12 @@ inline auto RapidBatteryParse3(const BatteryParserWorkload& data, size_t size) -
 // assume no unnecessary whitespaces anywhere, e.g. minified jsons
 // assume ndjson
 // assume output size known.
-auto STLParseBattery0(const BatteryParserWorkload& data, size_t size) -> BatteryParserResult {
+auto STLParseBattery0(const BatteryParserWorkload& data, size_t alloc_v, size_t alloc_o) -> BatteryParserResult {
   BatteryParserResult result("Custom", "null", true);
 
   result.timer.Start();
-  result.values = std::vector<uint64_t>(size);
+  result.offsets = std::vector<uint32_t>(alloc_o);
+  result.values = std::vector<uint64_t>(alloc_v);
   const char* battery_header = "{\"voltage\":[";
   const auto max_uint64_len = std::to_string(std::numeric_limits<uint64_t>::max()).length();
 
@@ -428,6 +465,7 @@ auto STLParseBattery1(const BatteryParserWorkload& data) -> BatteryParserResult 
 
   result.timer.Start();
   result.values = std::vector<uint64_t>();
+  result.offsets = std::vector<uint32_t>();
   const char* battery_header = "{\"voltage\":[";
   const auto max_uint64_len = std::to_string(std::numeric_limits<uint64_t>::max()).length();
 

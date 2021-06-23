@@ -84,22 +84,23 @@ auto main(int argc, char** argv) -> int {
     const BatteryParserResult& ref = outputs.back();
     inputs.back().Finish();
 
-    size_t expected_out_values = outputs.back().num_values;
+    size_t expected_values = outputs.back().num_values;
+    size_t expected_offsets = outputs.back().num_offsets;
 
-    JSONTEST_BENCH(SimdBatteryParse1(inputs.back(), expected_out_values));
-    JSONTEST_BENCH(SimdBatteryParse2(inputs.back(), expected_out_values));
+    JSONTEST_BENCH(SimdBatteryParse1(inputs.back(), expected_values, expected_offsets));
+    JSONTEST_BENCH(SimdBatteryParse2(inputs.back(), expected_values, expected_offsets));
 
     std::cout << "RapidJSON " << std::flush;
     JSONTEST_BENCH(RapidBatteryParse0(inputs.back()));
     JSONTEST_BENCH(RapidBatteryParse1(inputs.back()));
     JSONTEST_BENCH(RapidBatteryParse2(inputs.back()));
-    JSONTEST_BENCH(RapidBatteryParse3(inputs.back(), expected_out_values));
+    JSONTEST_BENCH(RapidBatteryParse3(inputs.back(), expected_values, expected_offsets));
 
     // custom parsing functions
     std::cout << "Custom " << std::flush;
-    JSONTEST_BENCH(STLParseBattery0(inputs.back(), expected_out_values));
+    JSONTEST_BENCH(STLParseBattery0(inputs.back(), expected_values, expected_offsets));
     JSONTEST_BENCH(STLParseBattery1(inputs.back()));
-    JSONTEST_BENCH(STLParseBattery2(inputs.back()));
+    //JSONTEST_BENCH(STLParseBattery2(inputs.back()));
 
     // parser generators
     std::cout << "ANTLR4 " << std::flush;

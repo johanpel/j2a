@@ -49,6 +49,7 @@ schema_fields = [pa.field("timestamp", pa.utf8(), False),
                  ]
 
 schema = pa.schema(schema_fields)
+print(schema)
 serialized_schema = schema.serialize()
 pa.output_stream('tripreport.as').write(serialized_schema)
 
