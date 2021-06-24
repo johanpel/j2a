@@ -48,12 +48,36 @@ struct BatteryParserResult {
   size_t num_offsets = 0;
   uint64_t checksum = 0;
 
+  void Print() {
+    std::cout << framework << " " << api << " " << output_pre_allocated << std::endl;
+    auto values_array = std::make_shared<arrow::UInt64Array>(arrow::uint64(), values.size(), arrow::Buffer::Wrap(values));
+    auto voltage_column =
+        arrow::ListArray(arrow::list(arrow::uint64()), offsets.size() - 1, arrow::Buffer::Wrap(offsets), values_array);
+    std::cout << voltage_column.ToString() << std::endl;
+  }
+
   void Finish() {
     checksum = std::accumulate(values.begin(), values.end(), 0UL) + std::accumulate(offsets.begin(), offsets.end(), 0UL);
     num_values = values.size();
     num_offsets = offsets.size();
-    num_bytes = values.size() * sizeof(uint64_t);
+    num_bytes = values.size() * sizeof(uint64_t) + offsets.size() * sizeof(int32_t);
     values = std::vector<uint64_t>();
+    offsets = std::vector<int32_t>();
+  }
+
+  [[nodiscard]] bool IsEqual(const BatteryParserResult& other) const {
+    if (checksum != other.checksum) {
+      std::cerr << "Checksum: " << checksum << " != " << other.checksum << std::endl;
+    } else if (num_values != other.num_values) {
+      std::cerr << "No. values: " << num_values << " != " << other.num_values << std::endl;
+    } else if (num_offsets != other.num_offsets) {
+      std::cerr << "No. offsets: " << num_offsets << " != " << other.num_offsets << std::endl;
+    } else if (num_bytes != other.num_bytes) {
+      std::cerr << "No. bytes: " << num_bytes << " != " << other.num_bytes << std::endl;
+    } else {
+      return true;
+    }
+    return false;
   }
 };
 
@@ -124,12 +148,10 @@ inline auto SimdBatteryParse1(const BatteryParserWorkload& data, size_t alloc_v,
   size_t offsets_idx = 0;
 
   for (auto obj : objects) {
-    result.offsets[offsets_idx] = static_cast<int32_t>(values_idx);
-    offsets_idx++;
+    result.offsets[offsets_idx++] = static_cast<int32_t>(values_idx);
     for (auto elem : obj["voltage"]) {
       assert(values_idx < alloc_v);
-      result.values[values_idx] = elem.get_uint64();
-      values_idx++;
+      result.values[values_idx++] = elem.get_uint64();
     }
   }
   // last offset
@@ -245,7 +267,8 @@ inline auto RapidBatteryParse1(const BatteryParserWorkload& data) -> BatteryPars
 
 class RapidBatteryHandler {
  public:
-  RapidBatteryHandler(size_t pre_alloc = 0) : result(std::vector<uint64_t>(pre_alloc)) {}
+  RapidBatteryHandler(size_t v_alloc = 0, size_t o_alloc = 0)
+      : values(std::vector<uint64_t>(v_alloc)), offsets(std::vector<int32_t>(o_alloc)) {}
 
   bool Null() {
     std::cerr << "Unexpected null." << std::endl;
@@ -260,7 +283,7 @@ class RapidBatteryHandler {
     return false;
   }
   bool Uint(unsigned i) {
-    result.push_back(i);
+    values.push_back(static_cast<uint64_t>(i));
     return true;
   }
   bool Int64(int64_t i) {
@@ -268,7 +291,7 @@ class RapidBatteryHandler {
     return false;
   }
   bool Uint64(uint64_t i) {
-    result.push_back(i);
+    values.push_back(i);
     return true;
   }
   bool Double(double d) {
@@ -283,7 +306,10 @@ class RapidBatteryHandler {
     std::cerr << "Unexpected string." << std::endl;
     return false;
   }
-  bool StartObject() { return true; }
+  bool StartObject() {
+    offsets.push_back(static_cast<int32_t>(values.size()));
+    return true;
+  }
   bool Key(const char* str, rapidjson::SizeType length, bool copy) { return true; }
   bool EndObject(rapidjson::SizeType memberCount) { return true; }
   bool StartArray() { return true; }
@@ -312,10 +338,13 @@ inline auto RapidBatteryParse2(const BatteryParserWorkload& data) -> BatteryPars
     }
   }
 
+  handler.offsets.push_back(static_cast<int32_t>(handler.values.size()));
+
   result.timer.Split();
   result.timer.Split();
 
-  result.values = handler.result;
+  result.values = std::move(handler.values);
+  result.offsets = std::move(handler.offsets);
 
   result.Finish();
   return result;
@@ -323,7 +352,8 @@ inline auto RapidBatteryParse2(const BatteryParserWorkload& data) -> BatteryPars
 
 class FixedSizeBatteryHandler {
  public:
-  FixedSizeBatteryHandler(size_t pre_alloc = 0) : result(std::vector<uint64_t>(pre_alloc)) {}
+  FixedSizeBatteryHandler(size_t v_alloc, size_t o_alloc)
+      : values(std::vector<uint64_t>(v_alloc)), offsets(std::vector<int32_t>(o_alloc)) {}
 
   bool Null() {
     std::cerr << "Unexpected null." << std::endl;
@@ -338,8 +368,7 @@ class FixedSizeBatteryHandler {
     return false;
   }
   bool Uint(unsigned i) {
-    result[index] = i;
-    i++;
+    values[offset++] = i;
     return true;
   }
   bool Int64(int64_t i) {
@@ -347,8 +376,7 @@ class FixedSizeBatteryHandler {
     return false;
   }
   bool Uint64(uint64_t i) {
-    result[index] = i;
-    i++;
+    values[offset++] = i;
     return true;
   }
   bool Double(double d) {
@@ -363,21 +391,29 @@ class FixedSizeBatteryHandler {
     std::cerr << "Unexpected string." << std::endl;
     return false;
   }
-  bool StartObject() { return true; }
+  bool StartObject() {
+    offsets[index++] = static_cast<int32_t>(offset);
+    return true;
+  }
   bool Key(const char* str, rapidjson::SizeType length, bool copy) { return true; }
   bool EndObject(rapidjson::SizeType memberCount) { return true; }
   bool StartArray() { return true; }
   bool EndArray(rapidjson::SizeType elementCount) { return true; }
 
+  // Index into the offsets buffer
   size_t index = 0;
-  std::vector<uint64_t> result;
+  // Offset of the values buffer.
+  size_t offset = 0;
+
+  std::vector<uint64_t> values;
+  std::vector<int32_t> offsets;
 };
 
 // rapidjson sax api pre allocated
 inline auto RapidBatteryParse3(const BatteryParserWorkload& data, size_t alloc_v, size_t alloc_o) -> BatteryParserResult {
   BatteryParserResult result("RapidJSON", "SAX", true);
   result.timer.Start();
-  FixedSizeBatteryHandler handler(alloc_v);
+  FixedSizeBatteryHandler handler(alloc_v, alloc_o);
   result.timer.Split();
 
   rapidjson::InsituStringStream stream(const_cast<char*>(data.bytes.data()));
@@ -392,9 +428,13 @@ inline auto RapidBatteryParse3(const BatteryParserWorkload& data, size_t alloc_v
     }
   }
 
+  // TODO: move this to handler finish function
+  handler.offsets[handler.index] = static_cast<int32_t>(handler.offset);
+
   result.timer.Split();
   result.timer.Split();
-  result.values = handler.result;
+  result.values = std::move(handler.values);
+  result.offsets = std::move(handler.offsets);
 
   result.Finish();
   return result;
@@ -407,14 +447,18 @@ auto STLParseBattery0(const BatteryParserWorkload& data, size_t alloc_v, size_t 
   BatteryParserResult result("Custom", "null", true);
 
   result.timer.Start();
-  result.offsets = std::vector<uint32_t>(alloc_o);
+  result.offsets = std::vector<int32_t>(alloc_o);
   result.values = std::vector<uint64_t>(alloc_v);
+
   const char* battery_header = "{\"voltage\":[";
-  const auto max_uint64_len = std::to_string(std::numeric_limits<uint64_t>::max()).length();
+  const size_t max_uint64_len = std::to_string(std::numeric_limits<uint64_t>::max()).length();
 
   const char* pos = data.bytes.data();
   const char* end = pos + data.bytes.size();
-  size_t i = 0;
+
+  size_t index = 0;
+  size_t offset = 0;
+
   result.timer.Split();
 
   while (pos < end) {
@@ -422,6 +466,9 @@ auto STLParseBattery0(const BatteryParserWorkload& data, size_t alloc_v, size_t 
     if (std::memcmp(pos, battery_header, strlen(battery_header)) != 0) {
       throw std::runtime_error("Battery header did not correspond to expected header.");
     }
+    // Place offset and increase index.
+    result.offsets[index++] = static_cast<int32_t>(offset);
+
     pos += strlen(battery_header);
     // Get values.
     while (true) {
@@ -436,7 +483,7 @@ auto STLParseBattery0(const BatteryParserWorkload& data, size_t alloc_v, size_t 
         case std::errc::result_out_of_range:
           throw std::runtime_error("Battery voltage value out of uint64_t range.");
       }
-      result.values[i++] = val;
+      result.values[offset++] = val;
       pos = val_result.ptr;
 
       // Check for end of array.
@@ -450,6 +497,9 @@ auto STLParseBattery0(const BatteryParserWorkload& data, size_t alloc_v, size_t 
       pos++;
     }
   }
+
+  // Last offset.
+  result.offsets[index++] = static_cast<int32_t>(offset);
 
   result.timer.Split();
   result.timer.Split();
@@ -465,7 +515,7 @@ auto STLParseBattery1(const BatteryParserWorkload& data) -> BatteryParserResult 
 
   result.timer.Start();
   result.values = std::vector<uint64_t>();
-  result.offsets = std::vector<uint32_t>();
+  result.offsets = std::vector<int32_t>();
   const char* battery_header = "{\"voltage\":[";
   const auto max_uint64_len = std::to_string(std::numeric_limits<uint64_t>::max()).length();
 
@@ -478,6 +528,9 @@ auto STLParseBattery1(const BatteryParserWorkload& data) -> BatteryParserResult 
     if (std::memcmp(pos, battery_header, strlen(battery_header)) != 0) {
       throw std::runtime_error("Battery header did not correspond to expected header.");
     }
+    // Place offset and increase index.
+    result.offsets.push_back(static_cast<int32_t>(result.values.size()));
+
     pos += strlen(battery_header);
     // Get values.
     while (true) {  // fixme
@@ -506,6 +559,9 @@ auto STLParseBattery1(const BatteryParserWorkload& data) -> BatteryParserResult 
       pos++;
     }
   }
+
+  // Last offset.
+  result.offsets.push_back(static_cast<int32_t>(result.values.size()));
 
   result.timer.Split();
   result.timer.Split();
@@ -557,12 +613,11 @@ auto ANTLRBatteryParse0(const BatteryParserWorkload& data) -> BatteryParserResul
 
   antlr4::tree::ParseTree* tree = parser.battery();
 
-  // std::cout << "Children: " << tree->children.size() << std::endl;
-
   // iterate over all except eof
   for (size_t i = 0; i < tree->children.size() - 1; i++) {
     const auto& object = tree->children[i];
     // std::cout << object->toStringTree(&parser) << std::endl;
+    result.offsets.push_back(static_cast<int32_t>(result.values.size()));
     // Skip footer, iterate over array contents
     for (auto* child : object->children[1]->children) {
       auto text = child->getText();
@@ -584,6 +639,9 @@ auto ANTLRBatteryParse0(const BatteryParserWorkload& data) -> BatteryParserResul
     // std::cout << std::endl;
   }
 
+  // Last offset.
+  result.offsets.push_back(static_cast<int32_t>(result.values.size()));
+
   result.timer.Split();
   result.timer.Split();
 
@@ -591,22 +649,33 @@ auto ANTLRBatteryParse0(const BatteryParserWorkload& data) -> BatteryParserResul
   return result;
 }
 
-struct append_vector {
+struct append_value {
   template <typename Context>
-  void operator()(Context const& ctx, std::vector<uint64_t>* dest) const {
+  void operator()(Context const& ctx, std::vector<uint64_t>* values, size_t* offset) const {
     using namespace boost::spirit;
     //    std::cout << x3::_attr(ctx) << std::endl;
-    dest->push_back(x3::_attr(ctx));
+    values->push_back(x3::_attr(ctx));
+    *offset += 1;
+  }
+};
+
+struct append_offset {
+  template <typename Context>
+  void operator()(Context const& ctx, std::vector<int32_t>* offsets, size_t* offset) const {
+    using namespace boost::spirit;
+    offsets->push_back(static_cast<int32_t>(*offset));
   }
 };
 
 template <typename Iterator>
-auto parse_battery(Iterator first, Iterator last, std::vector<uint64_t>* dest) -> bool {
+auto parse_battery(Iterator first, Iterator last, std::vector<uint64_t>* values, std::vector<int32_t>* offsets) -> bool {
   using namespace boost::spirit;
-  auto push_back = std::bind(append_vector(), std::placeholders::_1, dest);
+  size_t offset = 0;
+  auto push_value = std::bind(append_value(), std::placeholders::_1, values, &offset);
+  auto push_offset = std::bind(append_offset(), std::placeholders::_1, offsets, &offset);
 
-  auto header = x3::lit("{\"voltage\":[");
-  auto array = x3::uint64[push_back] >> *(x3::char_(',') >> x3::uint64[push_back]);  // uint64's separated by ,
+  auto header = x3::lit("{\"voltage\":[")[push_offset];
+  auto array = x3::uint64[push_value] >> *(x3::char_(',') >> x3::uint64[push_value]);  // uint64's separated by ,
   auto footer = x3::lit("]}\n");
   auto object = header >> array >> footer;
   auto grammar = *object >> x3::eoi;  // objects separated by newline
@@ -629,12 +698,15 @@ auto parse_battery(Iterator first, Iterator last, std::vector<uint64_t>* dest) -
 auto SpiritBatteryParse0(const BatteryParserWorkload& data) -> BatteryParserResult {
   BatteryParserResult result("Boost Spirit.X3", "null", false);
   result.timer.Start();
+  result.offsets = std::vector<int32_t>();
   result.values = std::vector<uint64_t>();
   result.timer.Split();
 
-  if (!parse_battery(data.bytes.begin(), data.bytes.end(), &result.values)) {
+  if (!parse_battery(data.bytes.begin(), data.bytes.end(), &result.values, &result.offsets)) {
     throw std::runtime_error("Spirit parsing error.");
   }
+
+  result.offsets.push_back(static_cast<int32_t>(result.values.size()));
 
   result.timer.Split();
   result.timer.Split();

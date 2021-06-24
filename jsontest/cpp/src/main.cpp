@@ -75,13 +75,13 @@ auto main(int argc, char** argv) -> int {
   inputs.push_back(workload); \
   outputs.push_back(X);       \
   inputs.back().Finish();     \
-  assert(outputs.back().checksum == ref.checksum)
+  assert(outputs[ref].IsEqual(outputs.back()))
 
     // Run experiments
-    std::cout << "simdjson " << std::flush;
+    std::cout << "simdjson.. " << std::flush;
     inputs.push_back(workload);
     outputs.push_back(SimdBatteryParse0(inputs.back()));
-    const BatteryParserResult& ref = outputs.back();
+    auto ref = outputs.size() - 1;
     inputs.back().Finish();
 
     size_t expected_values = outputs.back().num_values;
@@ -90,20 +90,20 @@ auto main(int argc, char** argv) -> int {
     JSONTEST_BENCH(SimdBatteryParse1(inputs.back(), expected_values, expected_offsets));
     JSONTEST_BENCH(SimdBatteryParse2(inputs.back(), expected_values, expected_offsets));
 
-    std::cout << "RapidJSON " << std::flush;
+    std::cout << "RapidJSON.. " << std::flush;
     JSONTEST_BENCH(RapidBatteryParse0(inputs.back()));
     JSONTEST_BENCH(RapidBatteryParse1(inputs.back()));
     JSONTEST_BENCH(RapidBatteryParse2(inputs.back()));
     JSONTEST_BENCH(RapidBatteryParse3(inputs.back(), expected_values, expected_offsets));
 
     // custom parsing functions
-    std::cout << "Custom " << std::flush;
+    std::cout << "Custom.. " << std::flush;
     JSONTEST_BENCH(STLParseBattery0(inputs.back(), expected_values, expected_offsets));
     JSONTEST_BENCH(STLParseBattery1(inputs.back()));
-    //JSONTEST_BENCH(STLParseBattery2(inputs.back()));
+    // JSONTEST_BENCH(STLParseBattery2(inputs.back()));
 
     // parser generators
-    std::cout << "ANTLR4 " << std::flush;
+    std::cout << "ANTLR4.. " << std::flush;
     JSONTEST_BENCH(ANTLRBatteryParse0(inputs.back()));
 
     // parser combinators
@@ -113,10 +113,6 @@ auto main(int argc, char** argv) -> int {
     std::cout << std::endl;
     // std::cout << std::string(workload.bytes.data(), workload.bytes.size()) << std::endl;
   }
-
-  std::cout << "Number of input data sets: " << inputs.size() << std::endl;
-  std::cout << "Number of output data sets: " << outputs.size() << std::endl;
-  std::cout << "Number of max values: " << values.size() << std::endl;
 
   std::ostream* o = &std::cout;
   std::ofstream f;
