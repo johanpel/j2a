@@ -604,6 +604,7 @@ auto ANTLRBatteryParse0(const BatteryParserWorkload& data) -> BatteryParserResul
   BatteryParserResult result("ANTLR4", "null", false);
   result.timer.Start();
   result.values = std::vector<uint64_t>();
+  result.offsets = std::vector<int32_t>();
   result.timer.Split();
 
   antlr4::ANTLRInputStream input(data.bytes.data(), data.bytes.size());
