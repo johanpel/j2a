@@ -48,11 +48,11 @@ struct BatteryParserResult {
   size_t num_offsets = 0;
   uint64_t checksum = 0;
 
-  void Print() {
+  void Print() const {
     std::cout << framework << " " << api << " " << output_pre_allocated << std::endl;
     auto values_array = std::make_shared<arrow::UInt64Array>(arrow::uint64(), values.size(), arrow::Buffer::Wrap(values));
-    auto voltage_column =
-        arrow::ListArray(arrow::list(arrow::uint64()), offsets.size() - 1, arrow::Buffer::Wrap(offsets), values_array);
+    auto voltage_column = arrow::ListArray(arrow::list(arrow::uint64()), static_cast<int64_t>(offsets.size() - 1),
+                                           arrow::Buffer::Wrap(offsets), values_array);
     std::cout << voltage_column.ToString() << std::endl;
   }
 
