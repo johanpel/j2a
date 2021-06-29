@@ -27,7 +27,7 @@ class Experiment:
             '--repeats {}'.format(self.repeats),
             '--threads {}'.format(self.threads),
             '--num-jsons {}'.format(self.jsons),
-            '--arrow-buf-cap {}'.format(128 * 1024 * 1024),
+            '--arrow-buf-cap {}'.format(1024 * 1024 * 1024),
             '--parser {}'.format(self.impl),
             '--trip-num-parsers {}'.format(self.trip_parsers),
             self.schema])
