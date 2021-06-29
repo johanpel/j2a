@@ -11,7 +11,7 @@ os.makedirs("data/trip/latency/threads/latency/fpga", exist_ok=True)
 repeats = 32
 experiments = []
 
-for n in range(0, 10, 1):
+for n in range(0, 20, 1):
     for t in range(1, multiprocessing.cpu_count() + 1):
         num_jsons = 2**n
         if num_jsons >= t:
