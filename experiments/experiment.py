@@ -6,7 +6,7 @@ class Experiment:
     base = 'docker run --rm -it --privileged -v `pwd`:/io bolson /src/bolson bench convert'
 
     def __init__(self, schema, threads=1, jsons=1, repeats=1, metrics='/io/data',
-                 latency='/io/data', impl='arrow', trip_parsers=3):
+                 latency='/io/data', impl='arrow', trip_parsers=3, battery_parsers=16):
         self.metrics = metrics
         self.latency = latency
         self.repeats = repeats
@@ -15,6 +15,7 @@ class Experiment:
         self.schema = schema
         self.impl = impl
         self.trip_parsers = trip_parsers
+        self.battery_parsers = battery_parsers
 
     def __str__(self):
         return 'Experiment{{repeats: {}, threads: {}, jsons: {}, impl:{}}}'.format(self.repeats, self.threads,
@@ -31,6 +32,7 @@ class Experiment:
             '--custom-battery-buf-cap {}'.format(1024 * 1024 * 1024),
             '--parser {}'.format(self.impl),
             '--trip-num-parsers {}'.format(self.trip_parsers),
+            '--battery-num-parsers {}'.format(self.battery_parsers),
             self.schema])
 
         print(command)
