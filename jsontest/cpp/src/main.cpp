@@ -37,11 +37,13 @@ auto main(int argc, char** argv) -> int {
   size_t approx_size;
   size_t values_end;
   std::string output_file;
+  bool with_minified;
 
   CLI::App app{"App description"};
   app.add_option("n,-n", approx_size, "Approximate size in B of each raw JSON dataset.")->default_val(1024 * 1024);
   app.add_option("v,-v", values_end, "Highest number of max battery values to sweep to.")->default_val(16);
   app.add_option("o,-o", output_file, "CSV output file. If not set, print to stdout.");
+  app.add_option("--with_minified", with_minified, "Include implementations that assume minified JSONs.")->default_val(false);
   CLI11_PARSE(app, argc, argv);
 
   if (argc == 2) {
@@ -67,8 +69,6 @@ auto main(int argc, char** argv) -> int {
     fmt::print("{:4} ({:2}/{:2}), {:8} JSONs, {:.2f} MiB, {:.2e} s. ", values[iv], iv + 1, values.size(), workload.num_jsons,
                static_cast<double>(workload.bytes.size()) / ScaleMultiplier(Scale::Mi), t_gen.seconds());
 
-    bool require_ws = true;
-
     // duplicate inputs for each implementation, we don't want the data to come from the
     // same location to prevent caching benefit from subsequent implementations cause this
     // will skew the results.
@@ -82,7 +82,7 @@ auto main(int argc, char** argv) -> int {
   }
 
     // Run experiments
-    std::cout << "simdjson.. " << std::flush;
+    std::cout << "simdjson " << std::flush;
     inputs.push_back(workload);
     outputs.push_back(SimdBatteryParse0(inputs.back()));
     auto ref = outputs.size() - 1;
@@ -94,29 +94,28 @@ auto main(int argc, char** argv) -> int {
     JSONTEST_BENCH(SimdBatteryParse1(inputs.back(), expected_values, expected_offsets));
     JSONTEST_BENCH(SimdBatteryParse2(inputs.back(), expected_values, expected_offsets));
 
-    std::cout << "RapidJSON.. " << std::flush;
+    std::cout << "RapidJSON " << std::flush;
     JSONTEST_BENCH(RapidBatteryParse0(inputs.back()));
     JSONTEST_BENCH(RapidBatteryParse1(inputs.back()));
     JSONTEST_BENCH(RapidBatteryParse2(inputs.back()));
     JSONTEST_BENCH(RapidBatteryParse3(inputs.back(), expected_values, expected_offsets));
 
     // custom parsing functions
-    std::cout << "Custom.. " << std::flush;
-    if (!require_ws) JSONTEST_BENCH(STLParseBattery0(inputs.back(), expected_values, expected_offsets));
-    if (!require_ws) JSONTEST_BENCH(STLParseBattery1(inputs.back()));
+    std::cout << "Custom " << std::flush;
+    if (with_minified) JSONTEST_BENCH(STLParseBattery0(inputs.back(), expected_values, expected_offsets));
+    if (with_minified) JSONTEST_BENCH(STLParseBattery1(inputs.back()));
     JSONTEST_BENCH(STLParseBattery2(inputs.back()));
 
     // parser generators
-    // std::cout << "ANTLR4.. " << std::flush;
+    std::cout << "ANTLR4 " << std::flush;
     JSONTEST_BENCH(ANTLRBatteryParse0(inputs.back()));
 
     // parser combinators
-    std::cout << "Spirit.." << std::flush;
-    if (!require_ws) JSONTEST_BENCH(SpiritBatteryParse0(inputs.back()));
+    std::cout << "Spirit " << std::flush;
+    if (with_minified) JSONTEST_BENCH(SpiritBatteryParse0(inputs.back()));
     JSONTEST_BENCH(SpiritBatteryParse1(inputs.back()));
 
     std::cout << std::endl;
-    // std::cout << std::string(workload.bytes.data(), workload.bytes.size()) << std::endl;
   }
 
   std::ostream* o = &std::cout;

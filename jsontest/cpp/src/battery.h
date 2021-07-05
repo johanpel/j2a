@@ -570,10 +570,14 @@ auto STLParseBattery1(const BatteryParserWorkload& data) -> BatteryParserResult 
   return result;
 }
 
-inline auto SkipWhitespace(const char* pos, const char* end, const char* whitespace) -> const char* {
-  size_t whitespaces = std::strspn(pos, whitespace);
-  const char* result = pos + whitespaces;
-  if (pos > end) {
+inline auto SkipWhitespace(const char* pos, const char* end) -> const char* {
+  // Whitespace includes: space, line feed, carriage return, character tabulation
+  // const char ws[] = {' ', '\t', '\n', '\r'};
+  const char* result = pos;
+  while (((*result == ' ') || (*result == '\t')) && (result < end)) {
+    result++;
+  }
+  if (result == end) {
     return nullptr;
   }
   return result;
@@ -585,11 +589,6 @@ auto STLParseBattery2(const BatteryParserWorkload& data) -> BatteryParserResult 
   result.timer.Start();
   result.values = std::vector<uint64_t>();
 
-  // Whitespace includes: space, line feed, carriage return, character tabulation
-  // const char ws[] = {' ', '\t', '\n', '\r'};
-  // However, since we're doing ndjson:
-  const char ws[] = {' ', '\t'};
-
   const auto max_uint64_len = std::to_string(std::numeric_limits<uint64_t>::max()).length();
   const auto* pos = data.bytes.data();
   const auto* end = pos + data.bytes.size();
@@ -597,7 +596,7 @@ auto STLParseBattery2(const BatteryParserWorkload& data) -> BatteryParserResult 
 
   while (pos < end) {
     // Scan for object start
-    pos = SkipWhitespace(pos, end, ws);
+    pos = SkipWhitespace(pos, end);
     if (*pos != '{') {
       throw std::runtime_error(fmt::format("Expected '{', encountered '{}'", *pos));
     }
@@ -606,21 +605,21 @@ auto STLParseBattery2(const BatteryParserWorkload& data) -> BatteryParserResult 
     // Scan for voltage key
     const char* voltage_key = "\"voltage\"";
     const size_t voltage_key_len = std::strlen(voltage_key);
-    pos = SkipWhitespace(pos, end, ws);
+    pos = SkipWhitespace(pos, end);
     if (std::memcmp(pos, voltage_key, voltage_key_len) != 0) {
       throw std::runtime_error(fmt::format("Expected \"voltage\", encountered {}", std::string_view(pos, voltage_key_len)));
     }
     pos += voltage_key_len;
 
     // Scan for key-value separator
-    pos = SkipWhitespace(pos, end, ws);
+    pos = SkipWhitespace(pos, end);
     if (*pos != ':') {
       throw std::runtime_error(fmt::format("Expected ':', encountered '{}'", *pos));
     }
     pos++;
 
     // Scan for array start.
-    pos = SkipWhitespace(pos, end, ws);
+    pos = SkipWhitespace(pos, end);
     if (*pos != '[') {
       throw std::runtime_error(fmt::format("Expected '[', encountered '{}'", *pos));
     }
@@ -632,7 +631,7 @@ auto STLParseBattery2(const BatteryParserWorkload& data) -> BatteryParserResult 
     // Scan values
     while (true) {
       uint64_t val = 0;
-      pos = SkipWhitespace(pos, end, ws);
+      pos = SkipWhitespace(pos, end);
       if (pos > end) {
         throw std::runtime_error("Unexpected end of JSON data while parsing array values..");
       } else if (*pos == ']') {  // Check array end
@@ -651,7 +650,7 @@ auto STLParseBattery2(const BatteryParserWorkload& data) -> BatteryParserResult 
         }
         result.values.push_back(val);
 
-        pos = SkipWhitespace(val_result.ptr, end, ws);
+        pos = SkipWhitespace(val_result.ptr, end);
         if (*pos == ',') {
           pos++;
         }
@@ -659,14 +658,14 @@ auto STLParseBattery2(const BatteryParserWorkload& data) -> BatteryParserResult 
     }
 
     // Scan for object end
-    pos = SkipWhitespace(pos, end, ws);
+    pos = SkipWhitespace(pos, end);
     if (*pos != '}') {
       throw std::runtime_error(fmt::format("Expected '}', encountered '{}'", *pos));
     }
     pos++;
 
     // Scan for newline delimiter
-    pos = SkipWhitespace(pos, end, ws);
+    pos = SkipWhitespace(pos, end);
     if (*pos != '\n') {
       throw std::runtime_error(fmt::format("Expected '\\n' (0x20), encountered '{}' (0x{})", *pos, static_cast<uint8_t>(*pos)));
     }
