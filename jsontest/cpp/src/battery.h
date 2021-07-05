@@ -735,9 +735,8 @@ auto ANTLRBatteryParse0(const BatteryParserWorkload& data) -> BatteryParserResul
 
 struct append_value {
   template <typename Context>
-  void operator()(Context const& ctx, std::vector<uint64_t>* values, size_t* offset) const {
+  inline void operator()(Context const& ctx, std::vector<uint64_t>* values, size_t* offset) const {
     using namespace boost::spirit;
-    //    std::cout << x3::_attr(ctx) << std::endl;
     values->push_back(x3::_attr(ctx));
     *offset += 1;
   }
@@ -745,7 +744,7 @@ struct append_value {
 
 struct append_offset {
   template <typename Context>
-  void operator()(Context const& ctx, std::vector<int32_t>* offsets, size_t* offset) const {
+  inline void operator()(Context const& ctx, std::vector<int32_t>* offsets, size_t* offset) const {
     using namespace boost::spirit;
     offsets->push_back(static_cast<int32_t>(*offset));
   }
