@@ -108,7 +108,7 @@ auto main(int argc, char** argv) -> int {
 
     // parser generators
     // std::cout << "ANTLR4.. " << std::flush;
-    // JSONTEST_BENCH(ANTLRBatteryParse0(inputs.back()));
+    JSONTEST_BENCH(ANTLRBatteryParse0(inputs.back()));
 
     // parser combinators
     std::cout << "Spirit.." << std::flush;
