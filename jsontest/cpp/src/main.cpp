@@ -67,15 +67,19 @@ auto main(int argc, char** argv) -> int {
     fmt::print("{:4} ({:2}/{:2}), {:8} JSONs, {:.2f} MiB, {:.2e} s. ", values[iv], iv + 1, values.size(), workload.num_jsons,
                static_cast<double>(workload.bytes.size()) / ScaleMultiplier(Scale::Mi), t_gen.seconds());
 
+    bool require_ws = true;
+
     // duplicate inputs for each implementation, we don't want the data to come from the
     // same location to prevent caching benefit from subsequent implementations cause this
     // will skew the results.
 
-#define JSONTEST_BENCH(X)     \
-  inputs.push_back(workload); \
-  outputs.push_back(X);       \
-  inputs.back().Finish();     \
-  assert(outputs[ref].IsEqual(outputs.back()))
+#define JSONTEST_BENCH(X)                         \
+  {                                               \
+    inputs.push_back(workload);                   \
+    outputs.push_back(X);                         \
+    inputs.back().Finish();                       \
+    assert(outputs[ref].IsEqual(outputs.back())); \
+  }
 
     // Run experiments
     std::cout << "simdjson.. " << std::flush;
@@ -98,17 +102,18 @@ auto main(int argc, char** argv) -> int {
 
     // custom parsing functions
     std::cout << "Custom.. " << std::flush;
-    JSONTEST_BENCH(STLParseBattery0(inputs.back(), expected_values, expected_offsets));
-    JSONTEST_BENCH(STLParseBattery1(inputs.back()));
-    // JSONTEST_BENCH(STLParseBattery2(inputs.back()));
+    if (!require_ws) JSONTEST_BENCH(STLParseBattery0(inputs.back(), expected_values, expected_offsets));
+    if (!require_ws) JSONTEST_BENCH(STLParseBattery1(inputs.back()));
+    JSONTEST_BENCH(STLParseBattery2(inputs.back()));
 
     // parser generators
     std::cout << "ANTLR4.. " << std::flush;
     JSONTEST_BENCH(ANTLRBatteryParse0(inputs.back()));
 
     // parser combinators
-    std::cout << "Spirit " << std::flush;
-    JSONTEST_BENCH(SpiritBatteryParse0(inputs.back()));
+    std::cout << "Spirit.." << std::flush;
+    if (!require_ws) JSONTEST_BENCH(SpiritBatteryParse0(inputs.back()));
+    JSONTEST_BENCH(SpiritBatteryParse1(inputs.back()));
 
     std::cout << std::endl;
     // std::cout << std::string(workload.bytes.data(), workload.bytes.size()) << std::endl;

@@ -570,29 +570,112 @@ auto STLParseBattery1(const BatteryParserWorkload& data) -> BatteryParserResult 
   return result;
 }
 
-// the idea here was to do some error checking etc,..
+inline auto SkipWhitespace(const char* pos, const char* end, const char* whitespace) -> const char* {
+  size_t whitespaces = std::strspn(pos, whitespace);
+  const char* result = pos + whitespaces;
+  if (pos > end) {
+    return nullptr;
+  }
+  return result;
+}
+
+// assume ndjson
 auto STLParseBattery2(const BatteryParserWorkload& data) -> BatteryParserResult {
-  BatteryParserResult result("Custom", "null", false);
+  BatteryParserResult result("Custom", "whitespaces", false);
   result.timer.Start();
   result.values = std::vector<uint64_t>();
-  const char* battery_header = "{\"voltage\":[";
 
+  // Whitespace includes: space, line feed, carriage return, character tabulation
+  // const char ws[] = {' ', '\t', '\n', '\r'};
+  // However, since we're doing ndjson:
+  const char ws[] = {' ', '\t'};
+
+  const auto max_uint64_len = std::to_string(std::numeric_limits<uint64_t>::max()).length();
   const auto* pos = data.bytes.data();
   const auto* end = pos + data.bytes.size();
   result.timer.Split();
 
   while (pos < end) {
-    // Check header.
-    if (std::memcmp(pos, battery_header, strlen(battery_header)) != 0) {
-      throw std::runtime_error("Battery header did not correspond to expected header.");
+    // Scan for object start
+    pos = SkipWhitespace(pos, end, ws);
+    if (*pos != '{') {
+      throw std::runtime_error(fmt::format("Expected '{', encountered '{}'", *pos));
     }
-    pos += strlen(battery_header);
-    // Get values.
-    if (ParseArrayPrim<uint64_t>(pos, end, &pos, &result.values) != ErrorCode::SUCCESS) {
-      throw std::runtime_error("Could not parse value.");
+    pos++;
+
+    // Scan for voltage key
+    const char* voltage_key = "\"voltage\"";
+    const size_t voltage_key_len = std::strlen(voltage_key);
+    pos = SkipWhitespace(pos, end, ws);
+    if (std::memcmp(pos, voltage_key, voltage_key_len) != 0) {
+      throw std::runtime_error(fmt::format("Expected \"voltage\", encountered {}", std::string_view(pos, voltage_key_len)));
     }
-    pos += 2;  // "}\n";
+    pos += voltage_key_len;
+
+    // Scan for key-value separator
+    pos = SkipWhitespace(pos, end, ws);
+    if (*pos != ':') {
+      throw std::runtime_error(fmt::format("Expected ':', encountered '{}'", *pos));
+    }
+    pos++;
+
+    // Scan for array start.
+    pos = SkipWhitespace(pos, end, ws);
+    if (*pos != '[') {
+      throw std::runtime_error(fmt::format("Expected '[', encountered '{}'", *pos));
+    }
+    pos++;
+
+    // Push offset
+    result.offsets.push_back(static_cast<int32_t>(result.values.size()));
+
+    // Scan values
+    while (true) {
+      uint64_t val = 0;
+      pos = SkipWhitespace(pos, end, ws);
+      if (pos > end) {
+        throw std::runtime_error("Unexpected end of JSON data while parsing array values..");
+      } else if (*pos == ']') {  // Check array end
+        pos++;
+        break;
+      } else {  // Parse values
+        auto val_result = std::from_chars<uint64_t>(pos, std::min(pos + max_uint64_len, end), val);
+        switch (val_result.ec) {
+          default:
+            break;
+          case std::errc::invalid_argument:
+            throw std::runtime_error(std::string("Battery voltage values contained invalid value: ") +
+                                     std::string(pos, max_uint64_len));
+          case std::errc::result_out_of_range:
+            throw std::runtime_error("Battery voltage value out of uint64_t range.");
+        }
+        result.values.push_back(val);
+
+        pos = SkipWhitespace(val_result.ptr, end, ws);
+        if (*pos == ',') {
+          pos++;
+        }
+      }
+    }
+
+    // Scan for object end
+    pos = SkipWhitespace(pos, end, ws);
+    if (*pos != '}') {
+      throw std::runtime_error(fmt::format("Expected '}', encountered '{}'", *pos));
+    }
+    pos++;
+
+    // Scan for newline delimiter
+    pos = SkipWhitespace(pos, end, ws);
+    if (*pos != '\n') {
+      throw std::runtime_error(fmt::format("Expected '\\n' (0x20), encountered '{}' (0x{})", *pos, static_cast<uint8_t>(*pos)));
+    }
+    pos++;
   }
+
+  // Push last offset.
+  result.offsets.push_back(static_cast<int32_t>(result.values.size()));
+
   result.timer.Split();
   result.timer.Split();
 
@@ -669,8 +752,10 @@ struct append_offset {
 };
 
 template <typename Iterator>
-auto parse_battery(Iterator first, Iterator last, std::vector<uint64_t>* values, std::vector<int32_t>* offsets) -> bool {
+auto parse_minified_battery(Iterator first, Iterator last, std::vector<uint64_t>* values, std::vector<int32_t>* offsets)
+    -> bool {
   using namespace boost::spirit;
+
   size_t offset = 0;
   auto push_value = std::bind(append_value(), std::placeholders::_1, values, &offset);
   auto push_offset = std::bind(append_offset(), std::placeholders::_1, offsets, &offset);
@@ -681,7 +766,7 @@ auto parse_battery(Iterator first, Iterator last, std::vector<uint64_t>* values,
   auto object = header >> array >> footer;
   auto grammar = *object >> x3::eoi;  // objects separated by newline
 
-  bool result = x3::phrase_parse(first, last, grammar, x3::space);
+  bool result = x3::parse(first, last, grammar);
 
   if (first != last) {  // fail if we did not get a full match
     std::cerr << "Spirit did not reach end of input... Remaining: ";
@@ -697,7 +782,60 @@ auto parse_battery(Iterator first, Iterator last, std::vector<uint64_t>* values,
 }
 
 auto SpiritBatteryParse0(const BatteryParserWorkload& data) -> BatteryParserResult {
-  BatteryParserResult result("Boost Spirit.X3", "null", false);
+  BatteryParserResult result("Boost Spirit.X3", "minified", false);
+  result.timer.Start();
+  result.offsets = std::vector<int32_t>();
+  result.values = std::vector<uint64_t>();
+  result.timer.Split();
+
+  if (!parse_minified_battery(data.bytes.begin(), data.bytes.end(), &result.values, &result.offsets)) {
+    throw std::runtime_error("Spirit parsing error.");
+  }
+
+  result.offsets.push_back(static_cast<int32_t>(result.values.size()));
+
+  result.timer.Split();
+  result.timer.Split();
+
+  result.Finish();
+  return result;
+}
+
+template <typename Iterator>
+auto parse_battery(Iterator first, Iterator last, std::vector<uint64_t>* values, std::vector<int32_t>* offsets) -> bool {
+  using namespace boost::spirit;
+
+  size_t offset = 0;
+  auto push_value = std::bind(append_value(), std::placeholders::_1, values, &offset);
+  auto push_offset = std::bind(append_offset(), std::placeholders::_1, offsets, &offset);
+
+  auto skip = x3::char_(' ') | x3::char_('\t');
+  auto header = x3::char_('{') >> x3::lit("\"voltage\"") >> x3::char_(':') >> x3::char_('[')[push_offset];
+  auto array = x3::uint64[push_value] >> *(x3::char_(',') >> x3::uint64[push_value]);  // uint64's separated by ,
+  auto footer = x3::char_(']') >> x3::char_('}') >> x3::char_('\n');
+  auto object = header >> array >> footer;
+  auto grammar = *object >> x3::eoi;  // objects separated by newline
+
+  bool result = x3::phrase_parse(first, last, grammar, skip);
+
+  if (first != last) {  // fail if we did not get a full match
+    std::cerr << "Spirit did not reach end of input... Remaining: " << std::endl;
+    int i = 0;
+    while ((first != last) && (i < 64)) {
+      std::cerr << *first++;
+      i++;
+    }
+    if (i == 64) {
+      std::cerr << "(" << last - first << " more ...)" << std::endl;
+    }
+    return false;
+  }
+
+  return result;
+}
+
+auto SpiritBatteryParse1(const BatteryParserWorkload& data) -> BatteryParserResult {
+  BatteryParserResult result("Boost Spirit.X3", "whitespace", false);
   result.timer.Start();
   result.offsets = std::vector<int32_t>();
   result.values = std::vector<uint64_t>();
