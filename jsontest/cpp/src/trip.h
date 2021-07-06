@@ -371,3 +371,4 @@ inline auto SimdTripParse1(const TripParserWorkload& data, int64_t pre_alloc_row
 
   return result;
 }
+

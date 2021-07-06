@@ -214,7 +214,7 @@ auto main(int argc, char** argv) -> int {
   bool with_minified;
 
   CLI::App app{"JSON parsing benchmarks."};
-  app.add_option("-s", approx_size, "Approximate size in B of each raw JSON dataset.")->default_val(1024 * 1024);
+  app.add_option("-s", approx_size, "Approximate size in B of each raw JSON dataset.")->default_val(1);
   app.add_option("-o", output_file, "CSV output file. If not set, print to stdout.");
   app.add_option("--with_minified", with_minified, "Include implementations that assume minified JSONs.")->default_val(false);
 
@@ -222,7 +222,7 @@ auto main(int argc, char** argv) -> int {
   auto* trip = app.add_subcommand("trip");
   app.require_subcommand();
 
-  battery->add_option("v,-v", values_end, "Highest number of max battery values to sweep to.")->default_val(16);
+  battery->add_option("v,-v", values_end, "Highest number of max battery values to sweep to.")->default_val(1);
 
   CLI11_PARSE(app, argc, argv);
 
