@@ -14,11 +14,13 @@ void PrintHeader(std::ostream* o) {
   *o << "framework,";
   *o << "api,";
   *o << "allocated,";
-  *o << "max_values,";
   *o << "num_jsons,";
   *o << "bytes_in,";
   *o << "bytes_out,";
-  *o << "time";
+  *o << "time_alloc,";
+  *o << "time_parse,";
+  *o << "time_walk,";
+  *o << "max_values";
   *o << '\n';
 }
 
@@ -26,34 +28,40 @@ void PrintResult(std::ostream* o, const BatteryParserWorkload& in, const Battery
   *o << out.framework << ",";
   *o << out.api << ",";
   *o << (out.output_pre_allocated ? "true" : "false") << ",";
-  *o << in.max_array_size << ",";
   *o << in.num_jsons << ",";
   *o << in.num_bytes << ",";
   *o << out.num_bytes << ",";
-  *o << Sum(out.timer.seconds()) << std::endl;
+  for (const auto& s : out.timer.seconds()) {
+    *o << s << ",";
+  }
+  *o << in.max_array_size;
+  *o << std::endl;
 }
 
 void PrintResult(std::ostream* o, const TripParserWorkload& in, const TripParserResult& out) {
   *o << out.framework << ",";
   *o << out.api << ",";
   *o << (out.output_pre_allocated ? "true" : "false") << ",";
-  *o << "null,";
   *o << in.num_jsons << ",";
   *o << in.num_bytes << ",";
   *o << out.num_bytes << ",";
-  *o << Sum(out.timer.seconds()) << std::endl;
+  for (const auto& s : out.timer.seconds()) {
+    *o << s << ",";
+  }
+  *o << "null";
+  *o << std::endl;
 }
 
 // duplicate inputs for each implementation, we don't want the data to come from the
 // same location to prevent caching benefit from subsequent implementations cause this
 // will skew the results.
 
-#define JSONTEST_BENCH(X)                         \
-  {                                               \
-    inputs.push_back(workload);                   \
-    outputs.push_back(X);                         \
-    inputs.back().Finish();                       \
-    assert(outputs[ref].IsEqual(outputs.back())); \
+#define JSONTEST_BENCH(X)                        \
+  {                                              \
+    inputs.push_back(workload);                  \
+    outputs.push_back(X);                        \
+    inputs.back().Finish();                      \
+    assert(outputs[ref].Equals(outputs.back())); \
   }
 
 auto battery_bench(const size_t approx_size, const size_t values_end, const std::string& output_file,
@@ -74,8 +82,11 @@ auto battery_bench(const size_t approx_size, const size_t values_end, const std:
     auto workload = GenerateBatteryParserWorkload(*schema, approx_size, false, simdjson::SIMDJSON_PADDING);
 
     t_gen.Stop();
-    fmt::print("Battery {:4} ({:2}/{:2}), {:8} JSONs, {:.2f} MiB, {:.2e} s. ", values[iv], iv + 1, values.size(),
-               workload.num_jsons, static_cast<double>(workload.bytes.size()) / ScaleMultiplier(Scale::Mi), t_gen.seconds());
+    fmt::print(
+        "Schema: battery, experiment: ({:2}/{:2}), max. voltage values: {:4}, JSONs: {:8}, Size: {:.2f} MiB, Generated in: "
+        "{:.2e} s. ",
+        iv + 1, values.size(), values[iv], workload.num_jsons,
+        static_cast<double>(workload.bytes.size()) / ScaleMultiplier(Scale::Mi), t_gen.seconds());
 
     // Run experiments
     std::cout << "simdjson " << std::flush;
@@ -140,7 +151,7 @@ auto trip_bench(const size_t approx_size, const std::string& output_file, const 
   auto workload = GenerateTripParserWorkload(*schema, approx_size, false, simdjson::SIMDJSON_PADDING);
 
   t_gen.Stop();
-  fmt::print("Trip {:8} JSONs, {:.2f} MiB, {:.2e} s. ", workload.num_jsons,
+  fmt::print("Schema: trip, JSONs: {:8}, Size: {:.2f} MiB, Generated in: {:.2e} s. ", workload.num_jsons,
              static_cast<double>(workload.bytes.size()) / ScaleMultiplier(Scale::Mi), t_gen.seconds());
 
   // Run experiments
@@ -150,7 +161,11 @@ auto trip_bench(const size_t approx_size, const std::string& output_file, const 
   auto ref = outputs.size() - 1;
   inputs.back().Finish();
 
-  // JSONTEST_BENCH(SimdBatteryParse1(inputs.back(), expected_values, expected_offsets));
+  size_t expected_rows = outputs.back().batch->num_rows();
+  size_t expected_ts_values =
+      std::dynamic_pointer_cast<arrow::StringArray>(outputs.back().batch->GetColumnByName("timestamp"))->total_values_length();
+
+  JSONTEST_BENCH(SimdTripParse1(inputs.back(), expected_rows, expected_ts_values));
   // JSONTEST_BENCH(SimdBatteryParse2(inputs.back(), expected_values, expected_offsets));
 
   std::cout << "RapidJSON " << std::flush;

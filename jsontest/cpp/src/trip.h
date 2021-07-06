@@ -50,7 +50,7 @@ struct TripParserWorkload {
 };
 
 struct TripBuilder {
-  TripBuilder()
+  TripBuilder(int64_t pre_alloc_rows = 0, int64_t pre_alloc_ts_values = 0)
       : timestamp(std::make_shared<arrow::StringBuilder>()),
         timezone(std::make_shared<arrow::UInt64Builder>()),
         vin(std::make_shared<arrow::UInt64Builder>()),
@@ -79,7 +79,28 @@ struct TripBuilder {
         large_speed_var(std::make_shared<arrow::FixedSizeListBuilder>(arrow::default_memory_pool(),
                                                                       std::make_shared<arrow::UInt64Builder>(), 13)),
         accel_decel(std::make_shared<arrow::UInt64Builder>()),
-        speed_changes(std::make_shared<arrow::UInt64Builder>()) {}
+        speed_changes(std::make_shared<arrow::UInt64Builder>()) {
+    timestamp->Reserve(pre_alloc_rows);
+    timestamp->ReserveData(pre_alloc_ts_values);
+    timezone->Reserve(pre_alloc_rows);
+    vin->Reserve(pre_alloc_rows);
+    odometer->Reserve(pre_alloc_rows);
+    hypermiling->Reserve(pre_alloc_rows);
+    avgspeed->Reserve(pre_alloc_rows);
+    sec_in_band->value_builder()->Reserve(pre_alloc_rows * 12);
+    miles_in_time_range->value_builder()->Reserve(pre_alloc_rows * 24);
+    const_speed_miles_in_band->value_builder()->Reserve(pre_alloc_rows * 12);
+    vary_speed_miles_in_band->value_builder()->Reserve(pre_alloc_rows * 12);
+    sec_decel->value_builder()->Reserve(pre_alloc_rows * 10);
+    sec_accel->value_builder()->Reserve(pre_alloc_rows * 10);
+    braking->value_builder()->Reserve(pre_alloc_rows * 6);
+    accel->value_builder()->Reserve(pre_alloc_rows * 6);
+    orientation->Reserve(pre_alloc_rows);
+    small_speed_var->value_builder()->Reserve(pre_alloc_rows * 13);
+    large_speed_var->value_builder()->Reserve(pre_alloc_rows * 13);
+    accel_decel->Reserve(pre_alloc_rows);
+    speed_changes->Reserve(pre_alloc_rows);
+  }
 
   auto Finish() -> std::shared_ptr<arrow::RecordBatch> {
     std::vector<std::shared_ptr<arrow::Array>> arrays = {timestamp->Finish().ValueOrDie(),
@@ -101,7 +122,12 @@ struct TripBuilder {
                                                          large_speed_var->Finish().ValueOrDie(),
                                                          accel_decel->Finish().ValueOrDie(),
                                                          speed_changes->Finish().ValueOrDie()};
-    
+
+    //    for (const auto& a : arrays) {
+    //      std::cout << a->type()->ToString() << std::endl;
+    //      std::cout << a->ToString() << std::endl;
+    //    }
+
     auto result = arrow::RecordBatch::Make(schema_trip(), arrays[0]->length(), arrays);
     assert(result != nullptr);
 
@@ -138,9 +164,6 @@ struct TripParserResult {
   std::string api = "null";
   bool output_pre_allocated = false;
 
-  // Builder
-  TripBuilder builder;
-
   // Result batch after finish
   std::shared_ptr<arrow::RecordBatch> batch;
 
@@ -150,9 +173,9 @@ struct TripParserResult {
 
   void Print() const {}
 
-  void Finish() { batch = builder.Finish(); }
+  void Finish() {}
 
-  [[nodiscard]] bool IsEqual(const TripParserResult& other) const {
+  [[nodiscard]] bool Equals(const TripParserResult& other) const {
     if (!batch->Equals(*other.batch)) {
       std::cerr << "Batch not equal." << std::endl;
     } else if (num_bytes != other.num_bytes) {
@@ -169,87 +192,180 @@ inline auto SimdTripParse0(const TripParserWorkload& data) -> TripParserResult {
   TripParserResult result("simdjson", "DOM", false);
 
   result.timer.Start();
-  // potential allocations
-  result.timer.Split();
+  TripBuilder builder;
+  result.timer.Split();  // pre allocations
 
   simdjson::dom::parser parser;
   auto objects = parser.parse_many(data.bytes.data(), data.bytes.size(), data.bytes.capacity());
   if (objects.error()) {
     std::cerr << simdjson::error_message(objects.error()) << std::endl;
   }
-  result.timer.Split();
+  result.timer.Split();  // parse
 
   for (auto obj : objects) {
     std::string_view timestamp = obj["timestamp"].get_string().value();
-    result.builder.timestamp->Append(arrow::util::string_view(timestamp.data(), timestamp.length()));
+    builder.timestamp->Append(arrow::util::string_view(timestamp.data(), timestamp.length()));
 
-    result.builder.timezone->Append(obj["timezone"].get_uint64().value());
-    result.builder.vin->Append(obj["vin"].get_uint64().value());
-    result.builder.odometer->Append(obj["odometer"].get_uint64().value());
-    result.builder.hypermiling->Append(obj["hypermiling"].get_bool().value());
-    result.builder.avgspeed->Append(obj["avgspeed"].get_uint64().value());
+    builder.timezone->Append(obj["timezone"].get_uint64().value());
+    builder.vin->Append(obj["vin"].get_uint64().value());
+    builder.odometer->Append(obj["odometer"].get_uint64().value());
+    builder.hypermiling->Append(obj["hypermiling"].get_bool().value());
+    builder.avgspeed->Append(obj["avgspeed"].get_uint64().value());
 
-    result.builder.sec_in_band->Append();
+    builder.sec_in_band->Append();
     for (const auto& elem : obj["sec_in_band"].get_array()) {
-      dynamic_cast<arrow::UInt64Builder*>(result.builder.sec_in_band->value_builder())->Append(elem.get_uint64().value());
+      dynamic_cast<arrow::UInt64Builder*>(builder.sec_in_band->value_builder())->Append(elem.get_uint64().value());
     }
 
-    result.builder.miles_in_time_range->Append();
+    builder.miles_in_time_range->Append();
     for (const auto& elem : obj["miles_in_time_range"].get_array()) {
-      dynamic_cast<arrow::UInt64Builder*>(result.builder.miles_in_time_range->value_builder())
-          ->Append(elem.get_uint64().value());
+      dynamic_cast<arrow::UInt64Builder*>(builder.miles_in_time_range->value_builder())->Append(elem.get_uint64().value());
     }
 
-    result.builder.const_speed_miles_in_band->Append();
+    builder.const_speed_miles_in_band->Append();
     for (const auto& elem : obj["const_speed_miles_in_band"].get_array()) {
-      dynamic_cast<arrow::UInt64Builder*>(result.builder.const_speed_miles_in_band->value_builder())
+      dynamic_cast<arrow::UInt64Builder*>(builder.const_speed_miles_in_band->value_builder())
           ->Append(elem.get_uint64().value());
     }
 
-    result.builder.vary_speed_miles_in_band->Append();
+    builder.vary_speed_miles_in_band->Append();
     for (const auto& elem : obj["vary_speed_miles_in_band"].get_array()) {
-      dynamic_cast<arrow::UInt64Builder*>(result.builder.vary_speed_miles_in_band->value_builder())
-          ->Append(elem.get_uint64().value());
+      dynamic_cast<arrow::UInt64Builder*>(builder.vary_speed_miles_in_band->value_builder())->Append(elem.get_uint64().value());
     }
 
-    result.builder.sec_decel->Append();
+    builder.sec_decel->Append();
     for (const auto& elem : obj["sec_decel"].get_array()) {
-      dynamic_cast<arrow::UInt64Builder*>(result.builder.sec_decel->value_builder())->Append(elem.get_uint64().value());
+      dynamic_cast<arrow::UInt64Builder*>(builder.sec_decel->value_builder())->Append(elem.get_uint64().value());
     }
 
-    result.builder.sec_accel->Append();
+    builder.sec_accel->Append();
     for (const auto& elem : obj["sec_accel"].get_array()) {
-      dynamic_cast<arrow::UInt64Builder*>(result.builder.sec_accel->value_builder())->Append(elem.get_uint64().value());
+      dynamic_cast<arrow::UInt64Builder*>(builder.sec_accel->value_builder())->Append(elem.get_uint64().value());
     }
 
-    result.builder.braking->Append();
+    builder.braking->Append();
     for (const auto& elem : obj["braking"].get_array()) {
-      dynamic_cast<arrow::UInt64Builder*>(result.builder.braking->value_builder())->Append(elem.get_uint64().value());
+      dynamic_cast<arrow::UInt64Builder*>(builder.braking->value_builder())->Append(elem.get_uint64().value());
     }
 
-    result.builder.accel->Append();
+    builder.accel->Append();
     for (const auto& elem : obj["accel"].get_array()) {
-      dynamic_cast<arrow::UInt64Builder*>(result.builder.accel->value_builder())->Append(elem.get_uint64().value());
+      dynamic_cast<arrow::UInt64Builder*>(builder.accel->value_builder())->Append(elem.get_uint64().value());
     }
 
     auto orientation = obj["orientation"].get_bool().value();
-    result.builder.orientation->Append(orientation);
+    builder.orientation->Append(orientation);
 
-    result.builder.small_speed_var->Append();
+    builder.small_speed_var->Append();
     for (const auto& elem : obj["small_speed_var"].get_array()) {
-      dynamic_cast<arrow::UInt64Builder*>(result.builder.small_speed_var->value_builder())->Append(elem.get_uint64().value());
+      dynamic_cast<arrow::UInt64Builder*>(builder.small_speed_var->value_builder())->Append(elem.get_uint64().value());
     }
 
-    result.builder.large_speed_var->Append();
+    builder.large_speed_var->Append();
     for (const auto& elem : obj["large_speed_var"].get_array()) {
-      dynamic_cast<arrow::UInt64Builder*>(result.builder.large_speed_var->value_builder())->Append(elem.get_uint64().value());
+      dynamic_cast<arrow::UInt64Builder*>(builder.large_speed_var->value_builder())->Append(elem.get_uint64().value());
     }
 
-    result.builder.accel_decel->Append(obj["accel_decel"].get_uint64().value());
-    result.builder.speed_changes->Append(obj["speed_changes"].get_uint64().value());
+    builder.accel_decel->Append(obj["accel_decel"].get_uint64().value());
+    builder.speed_changes->Append(obj["speed_changes"].get_uint64().value());
   }
 
-  result.timer.Split();
+  result.batch = builder.Finish();
+  result.timer.Split();  // walk & convert DOM
+
+  result.Finish();
+
+  return result;
+}
+
+// simdjson DOM style API
+inline auto SimdTripParse1(const TripParserWorkload& data, int64_t pre_alloc_rows, int64_t pre_alloc_ts_values)
+    -> TripParserResult {
+  TripParserResult result("simdjson", "DOM", false);
+
+  result.timer.Start();
+  TripBuilder builder(pre_alloc_rows, pre_alloc_ts_values);
+  result.timer.Split();  // pre allocations
+
+  simdjson::dom::parser parser;
+  auto objects = parser.parse_many(data.bytes.data(), data.bytes.size(), data.bytes.capacity());
+  if (objects.error()) {
+    std::cerr << simdjson::error_message(objects.error()) << std::endl;
+  }
+  result.timer.Split();  // parse
+
+  for (auto obj : objects) {
+    std::string_view timestamp = obj["timestamp"].get_string().value();
+    builder.timestamp->UnsafeAppend(arrow::util::string_view(timestamp.data(), timestamp.length()));
+
+    builder.timezone->UnsafeAppend(obj["timezone"].get_uint64().value());
+    builder.vin->UnsafeAppend(obj["vin"].get_uint64().value());
+    builder.odometer->UnsafeAppend(obj["odometer"].get_uint64().value());
+    builder.hypermiling->UnsafeAppend(obj["hypermiling"].get_bool().value());
+    builder.avgspeed->UnsafeAppend(obj["avgspeed"].get_uint64().value());
+
+    builder.sec_in_band->Append();
+    for (const auto& elem : obj["sec_in_band"].get_array()) {
+      dynamic_cast<arrow::UInt64Builder*>(builder.sec_in_band->value_builder())->UnsafeAppend(elem.get_uint64().value());
+    }
+
+    builder.miles_in_time_range->Append();
+    for (const auto& elem : obj["miles_in_time_range"].get_array()) {
+      dynamic_cast<arrow::UInt64Builder*>(builder.miles_in_time_range->value_builder())
+          ->UnsafeAppend(elem.get_uint64().value());
+    }
+
+    builder.const_speed_miles_in_band->Append();
+    for (const auto& elem : obj["const_speed_miles_in_band"].get_array()) {
+      dynamic_cast<arrow::UInt64Builder*>(builder.const_speed_miles_in_band->value_builder())
+          ->UnsafeAppend(elem.get_uint64().value());
+    }
+
+    builder.vary_speed_miles_in_band->Append();
+    for (const auto& elem : obj["vary_speed_miles_in_band"].get_array()) {
+      dynamic_cast<arrow::UInt64Builder*>(builder.vary_speed_miles_in_band->value_builder())
+          ->UnsafeAppend(elem.get_uint64().value());
+    }
+
+    builder.sec_decel->Append();
+    for (const auto& elem : obj["sec_decel"].get_array()) {
+      dynamic_cast<arrow::UInt64Builder*>(builder.sec_decel->value_builder())->UnsafeAppend(elem.get_uint64().value());
+    }
+
+    builder.sec_accel->Append();
+    for (const auto& elem : obj["sec_accel"].get_array()) {
+      dynamic_cast<arrow::UInt64Builder*>(builder.sec_accel->value_builder())->UnsafeAppend(elem.get_uint64().value());
+    }
+
+    builder.braking->Append();
+    for (const auto& elem : obj["braking"].get_array()) {
+      dynamic_cast<arrow::UInt64Builder*>(builder.braking->value_builder())->UnsafeAppend(elem.get_uint64().value());
+    }
+
+    builder.accel->Append();
+    for (const auto& elem : obj["accel"].get_array()) {
+      dynamic_cast<arrow::UInt64Builder*>(builder.accel->value_builder())->UnsafeAppend(elem.get_uint64().value());
+    }
+
+    auto orientation = obj["orientation"].get_bool().value();
+    builder.orientation->UnsafeAppend(orientation);
+
+    builder.small_speed_var->Append();
+    for (const auto& elem : obj["small_speed_var"].get_array()) {
+      dynamic_cast<arrow::UInt64Builder*>(builder.small_speed_var->value_builder())->UnsafeAppend(elem.get_uint64().value());
+    }
+
+    builder.large_speed_var->Append();
+    for (const auto& elem : obj["large_speed_var"].get_array()) {
+      dynamic_cast<arrow::UInt64Builder*>(builder.large_speed_var->value_builder())->UnsafeAppend(elem.get_uint64().value());
+    }
+
+    builder.accel_decel->UnsafeAppend(obj["accel_decel"].get_uint64().value());
+    builder.speed_changes->UnsafeAppend(obj["speed_changes"].get_uint64().value());
+  }
+
+  result.batch = builder.Finish();
+  result.timer.Split();  // walk & convert DOM
 
   result.Finish();
 

@@ -65,7 +65,7 @@ struct BatteryParserResult {
     offsets = std::vector<int32_t>();
   }
 
-  [[nodiscard]] bool IsEqual(const BatteryParserResult& other) const {
+  [[nodiscard]] bool Equals(const BatteryParserResult& other) const {
     if (checksum != other.checksum) {
       std::cerr << "Checksum: " << checksum << " != " << other.checksum << std::endl;
     } else if (num_values != other.num_values) {
