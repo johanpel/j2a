@@ -14,7 +14,8 @@ if (COMPILER_SUPPORTS_MARCH_NATIVE)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
 endif ()
 
-find_package(Arrow 3.0.0 CONFIG REQUIRED)
+find_package(Arrow 4.0.0 CONFIG REQUIRED)
+find_package(cuDF 21.08.00 CONFIG REQUIRED)
 
 ########################################################################################################## CompileUnits
 include(FetchContent)
@@ -151,6 +152,8 @@ add_compile_unit(
         antlr4_static
         CLI11::CLI11
         fmt::fmt-header-only
+        fmt::fmt
+        cudf::cudf
 )
 
 compile_units()

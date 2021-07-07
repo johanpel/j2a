@@ -7,7 +7,7 @@
 
 #include "arrow.h"
 #include "battery.h"
-#include "trip.h"
+// #include "trip.h"
 #include "utils.h"
 
 void PrintHeader(std::ostream* o) {
@@ -38,19 +38,19 @@ void PrintResult(std::ostream* o, const BatteryParserWorkload& in, const Battery
   *o << std::endl;
 }
 
-void PrintResult(std::ostream* o, const TripParserWorkload& in, const TripParserResult& out) {
-  *o << out.framework << ",";
-  *o << out.api << ",";
-  *o << (out.output_pre_allocated ? "true" : "false") << ",";
-  *o << in.num_jsons << ",";
-  *o << in.num_bytes << ",";
-  *o << out.num_bytes << ",";
-  for (const auto& s : out.timer.seconds()) {
-    *o << s << ",";
-  }
-  *o << "null";
-  *o << std::endl;
-}
+// void PrintResult(std::ostream* o, const TripParserWorkload& in, const TripParserResult& out) {
+//   *o << out.framework << ",";
+//   *o << out.api << ",";
+//   *o << (out.output_pre_allocated ? "true" : "false") << ",";
+//   *o << in.num_jsons << ",";
+//   *o << in.num_bytes << ",";
+//   *o << out.num_bytes << ",";
+//   for (const auto& s : out.timer.seconds()) {
+//     *o << s << ",";
+//   }
+//   *o << "null";
+//   *o << std::endl;
+// }
 
 // duplicate inputs for each implementation, we don't want the data to come from the
 // same location to prevent caching benefit from subsequent implementations cause this
@@ -122,6 +122,10 @@ auto battery_bench(const size_t approx_size, const size_t values_end, const std:
     if (with_minified) JSONTEST_BENCH(SpiritBatteryParse0(inputs.back()));
     JSONTEST_BENCH(SpiritBatteryParse1(inputs.back()));
 
+    // cuDF (GPU)
+    std::cout << "cuDF " << std::flush;
+    JSONTEST_BENCH(cuDFBatteryParse(inputs.back()));
+
     std::cout << std::endl;
   }
 
@@ -141,71 +145,71 @@ auto battery_bench(const size_t approx_size, const size_t values_end, const std:
   return EXIT_SUCCESS;
 }
 
-auto trip_bench(const size_t approx_size, const std::string& output_file, const bool with_minified) {
-  std::vector<TripParserWorkload> inputs;
-  std::vector<TripParserResult> outputs;
+// auto trip_bench(const size_t approx_size, const std::string& output_file, const bool with_minified) {
+//   std::vector<TripParserWorkload> inputs;
+//   std::vector<TripParserResult> outputs;
 
-  putong::Timer t_gen(true);
-  // create workload
-  auto schema = schema_trip();
-  auto workload = GenerateTripParserWorkload(*schema, approx_size, false, simdjson::SIMDJSON_PADDING);
+//   putong::Timer t_gen(true);
+//   // create workload
+//   auto schema = schema_trip();
+//   auto workload = GenerateTripParserWorkload(*schema, approx_size, false, simdjson::SIMDJSON_PADDING);
 
-  t_gen.Stop();
-  fmt::print("Schema: trip, JSONs: {:8}, Size: {:.2f} MiB, Generated in: {:.2e} s. ", workload.num_jsons,
-             static_cast<double>(workload.bytes.size()) / ScaleMultiplier(Scale::Mi), t_gen.seconds());
+//   t_gen.Stop();
+//   fmt::print("Schema: trip, JSONs: {:8}, Size: {:.2f} MiB, Generated in: {:.2e} s. ", workload.num_jsons,
+//              static_cast<double>(workload.bytes.size()) / ScaleMultiplier(Scale::Mi), t_gen.seconds());
 
-  // Run experiments
-  std::cout << "simdjson " << std::flush;
-  inputs.push_back(workload);
-  outputs.push_back(SimdTripParse0(inputs.back()));
-  auto ref = outputs.size() - 1;
-  inputs.back().Finish();
+//   // Run experiments
+//   std::cout << "simdjson " << std::flush;
+//   inputs.push_back(workload);
+//   outputs.push_back(SimdTripParse0(inputs.back()));
+//   auto ref = outputs.size() - 1;
+//   inputs.back().Finish();
 
-  size_t expected_rows = outputs.back().batch->num_rows();
-  size_t expected_ts_values =
-      std::dynamic_pointer_cast<arrow::StringArray>(outputs.back().batch->GetColumnByName("timestamp"))->total_values_length();
+//   size_t expected_rows = outputs.back().batch->num_rows();
+//   size_t expected_ts_values =
+//       std::dynamic_pointer_cast<arrow::StringArray>(outputs.back().batch->GetColumnByName("timestamp"))->total_values_length();
 
-  JSONTEST_BENCH(SimdTripParse1(inputs.back(), expected_rows, expected_ts_values));
-  // JSONTEST_BENCH(SimdBatteryParse2(inputs.back(), expected_values, expected_offsets));
+//   JSONTEST_BENCH(SimdTripParse1(inputs.back(), expected_rows, expected_ts_values));
+//   // JSONTEST_BENCH(SimdBatteryParse2(inputs.back(), expected_values, expected_offsets));
 
-  std::cout << "RapidJSON " << std::flush;
-  // JSONTEST_BENCH(RapidBatteryParse0(inputs.back()));
-  // JSONTEST_BENCH(RapidBatteryParse1(inputs.back()));
-  // JSONTEST_BENCH(RapidBatteryParse2(inputs.back()));
-  // JSONTEST_BENCH(RapidBatteryParse3(inputs.back(), expected_values, expected_offsets));
+//   std::cout << "RapidJSON " << std::flush;
+//   // JSONTEST_BENCH(RapidBatteryParse0(inputs.back()));
+//   // JSONTEST_BENCH(RapidBatteryParse1(inputs.back()));
+//   // JSONTEST_BENCH(RapidBatteryParse2(inputs.back()));
+//   // JSONTEST_BENCH(RapidBatteryParse3(inputs.back(), expected_values, expected_offsets));
 
-  // custom parsing functions
-  std::cout << "Custom " << std::flush;
-  // if (with_minified) JSONTEST_BENCH(STLParseBattery0(inputs.back(), expected_values, expected_offsets));
-  // if (with_minified) JSONTEST_BENCH(STLParseBattery1(inputs.back()));
-  // JSONTEST_BENCH(STLParseBattery2(inputs.back()));
+//   // custom parsing functions
+//   std::cout << "Custom " << std::flush;
+//   // if (with_minified) JSONTEST_BENCH(STLParseBattery0(inputs.back(), expected_values, expected_offsets));
+//   // if (with_minified) JSONTEST_BENCH(STLParseBattery1(inputs.back()));
+//   // JSONTEST_BENCH(STLParseBattery2(inputs.back()));
 
-  // parser generators
-  std::cout << "ANTLR4 " << std::flush;
-  // JSONTEST_BENCH(ANTLRBatteryParse0(inputs.back()));
+//   // parser generators
+//   std::cout << "ANTLR4 " << std::flush;
+//   // JSONTEST_BENCH(ANTLRBatteryParse0(inputs.back()));
 
-  // parser combinators
-  std::cout << "Spirit " << std::flush;
-  // if (with_minified) JSONTEST_BENCH(SpiritBatteryParse0(inputs.back()));
-  // JSONTEST_BENCH(SpiritBatteryParse1(inputs.back()));
+//   // parser combinators
+//   std::cout << "Spirit " << std::flush;
+//   // if (with_minified) JSONTEST_BENCH(SpiritBatteryParse0(inputs.back()));
+//   // JSONTEST_BENCH(SpiritBatteryParse1(inputs.back()));
 
-  std::cout << std::endl;
+//   std::cout << std::endl;
 
-  std::ostream* o = &std::cout;
-  std::ofstream f;
+//   std::ostream* o = &std::cout;
+//   std::ofstream f;
 
-  if (!output_file.empty()) {
-    f.open(output_file);
-    o = &f;
-  }
+//   if (!output_file.empty()) {
+//     f.open(output_file);
+//     o = &f;
+//   }
 
-  PrintHeader(o);
-  for (int i = 0; i < inputs.size(); i++) {
-    PrintResult(o, inputs[i], outputs[i]);
-  }
+//   PrintHeader(o);
+//   for (int i = 0; i < inputs.size(); i++) {
+//     PrintResult(o, inputs[i], outputs[i]);
+//   }
 
-  return EXIT_SUCCESS;
-}
+//   return EXIT_SUCCESS;
+// }
 
 auto main(int argc, char** argv) -> int {
   size_t approx_size;
@@ -229,7 +233,7 @@ auto main(int argc, char** argv) -> int {
   if (battery->parsed()) {
     battery_bench(approx_size, values_end, output_file, with_minified);
   }
-  if (trip->parsed()) {
-    trip_bench(approx_size, output_file, with_minified);
-  }
+  // if (trip->parsed()) {
+  //   trip_bench(approx_size, output_file, with_minified);
+  // }
 }
