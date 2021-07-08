@@ -59,8 +59,7 @@ inline auto EatPrimitive(const char* pos, const char* end, T* dest) -> const cha
 }
 
 template <typename T>
-inline auto EatPrimitiveArray(const char* pos, const char* end, std::vector<T>* dest) -> const char* {
-  const auto max_prim_len = std::to_string(std::numeric_limits<T>::max()).length();
+inline auto EatPrimitiveArray(const char* pos, const char* end, std::vector<T>* dest, size_t max_prim_len = 12) -> const char* {
   pos = EatArrayStart(pos, end);  // [
   // Scan values
   while (true) {
@@ -72,7 +71,7 @@ inline auto EatPrimitiveArray(const char* pos, const char* end, std::vector<T>* 
       break;
     } else {  // Parse values
       uint64_t val = 0;
-      pos = EatPrimitive<uint64_t>(pos, std::min(end, pos + max_prim_len), &val);
+      pos = EatPrimitive<uint64_t>(pos, end, &val);
       dest->push_back(val);
       if (*pos == ',') {
         pos++;
