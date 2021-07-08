@@ -5,10 +5,10 @@
 #include <ostream>
 #include <vector>
 
-#include "arrow.h"
-#include "battery.h"
-#include "trip.h"
-#include "utils.h"
+#include "./arrow.h"
+#include "./battery.h"
+#include "./trip.h"
+#include "./utils.h"
 
 void PrintHeader(std::ostream* o) {
   *o << "framework,";
@@ -112,10 +112,6 @@ auto battery_bench(const size_t approx_size, const size_t values_end, const std:
     if (with_minified) JSONTEST_BENCH(STLParseBattery0(inputs.back(), expected_values, expected_offsets));
     if (with_minified) JSONTEST_BENCH(STLParseBattery1(inputs.back()));
     JSONTEST_BENCH(STLParseBattery2(inputs.back()));
-
-    // parser generators
-    std::cout << "ANTLR4 " << std::flush;
-    JSONTEST_BENCH(ANTLRBatteryParse0(inputs.back()));
 
     // parser combinators
     std::cout << "Spirit " << std::flush;

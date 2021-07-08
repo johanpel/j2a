@@ -12,9 +12,6 @@
 #include <utility>
 
 #include "./generic.h"
-#include "BatteryLexer.h"
-#include "BatteryParser.h"
-#include "antlr4-runtime.h"
 
 struct BatteryParserWorkload {
   size_t max_array_size = 1;
@@ -608,56 +605,6 @@ auto STLParseBattery2(const BatteryParserWorkload& data) -> BatteryParserResult 
   }
 
   // Push last offset.
-  result.offsets.push_back(static_cast<int32_t>(result.values.size()));
-
-  result.timer.Split();
-  result.timer.Split();
-
-  result.Finish();
-  return result;
-}
-
-auto ANTLRBatteryParse0(const BatteryParserWorkload& data) -> BatteryParserResult {
-  BatteryParserResult result("ANTLR4", "null", false);
-  result.timer.Start();
-  result.values = std::vector<uint64_t>();
-  result.offsets = std::vector<int32_t>();
-  result.timer.Split();
-
-  antlr4::ANTLRInputStream input(data.bytes.data(), data.bytes.size());
-  BatteryLexer lexer(&input);
-  antlr4::CommonTokenStream tokens(&lexer);
-  BatteryParser parser(&tokens);
-
-  antlr4::tree::ParseTree* tree = parser.battery();
-
-  // iterate over all except eof
-  for (size_t i = 0; i < tree->children.size() - 1; i++) {
-    const auto& object = tree->children[i];
-    // std::cout << object->toStringTree(&parser) << std::endl;
-    result.offsets.push_back(static_cast<int32_t>(result.values.size()));
-    // Skip footer, iterate over array contents
-    for (auto* child : object->children[1]->children) {
-      auto text = child->getText();
-      if (text != ",") {
-        uint64_t value = 0;
-        auto val_result = std::from_chars(text.data(), text.data() + text.length(), value);
-        switch (val_result.ec) {
-          default:
-            break;
-          case std::errc::invalid_argument:
-            throw std::runtime_error(std::string("Battery voltage values contained invalid value: ") + text);
-          case std::errc::result_out_of_range:
-            throw std::runtime_error("Battery voltage value " + text + " out of uint64_t range.");
-        }
-        // std::cout << text << " ";
-        result.values.push_back(value);
-      }
-    }
-    // std::cout << std::endl;
-  }
-
-  // Last offset.
   result.offsets.push_back(static_cast<int32_t>(result.values.size()));
 
   result.timer.Split();
