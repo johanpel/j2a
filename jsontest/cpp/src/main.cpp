@@ -111,12 +111,12 @@ auto battery_bench(const size_t approx_size, const size_t values_end, const std:
     std::cout << "Custom " << std::flush;
     if (with_minified) JSONTEST_BENCH(STLParseBattery0(inputs.back(), expected_values, expected_offsets));
     if (with_minified) JSONTEST_BENCH(STLParseBattery1(inputs.back()));
-    JSONTEST_BENCH(STLParseBattery2(inputs.back()));
+    JSONTEST_BENCH(STLParseBattery2(inputs.back(), expected_values, expected_offsets));
 
     // parser combinators
     std::cout << "Spirit " << std::flush;
     if (with_minified) JSONTEST_BENCH(SpiritBatteryParse0(inputs.back()));
-    JSONTEST_BENCH(SpiritBatteryParse1(inputs.back()));
+    JSONTEST_BENCH(SpiritBatteryParse1(inputs.back(), expected_values, expected_offsets));
 
     std::cout << std::endl;
   }

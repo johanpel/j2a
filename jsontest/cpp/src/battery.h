@@ -98,8 +98,7 @@ inline auto SimdBatteryParse0(const BatteryParserWorkload& data) -> BatteryParse
   BatteryParserResult result("simdjson", "DOM", false);
 
   result.timer.Start();
-  result.values = std::vector<uint64_t>();
-  result.offsets = std::vector<int32_t>();
+  // allocations
   result.timer.Split();
 
   simdjson::dom::parser parser;
@@ -130,8 +129,8 @@ inline auto SimdBatteryParse1(const BatteryParserWorkload& data, size_t alloc_v,
   BatteryParserResult result("simdjson", "DOM", true);
 
   result.timer.Start();
-  result.offsets = std::vector<int32_t>(alloc_o);
-  result.values = std::vector<uint64_t>(alloc_v);
+  result.values.reserve(alloc_v);
+  result.offsets.reserve(alloc_o);
   result.timer.Split();
 
   simdjson::dom::parser parser;
@@ -164,8 +163,8 @@ inline auto SimdBatteryParse1(const BatteryParserWorkload& data, size_t alloc_v,
 inline auto SimdBatteryParse2(const BatteryParserWorkload& data, size_t alloc_v, size_t alloc_o) -> BatteryParserResult {
   BatteryParserResult result("simdjson", "DOM (no keys)", true);
   result.timer.Start();
-  result.offsets = std::vector<int32_t>(alloc_o);
-  result.values = std::vector<uint64_t>(alloc_v);
+  result.values.reserve(alloc_v);
+  result.offsets.reserve(alloc_o);
   result.timer.Split();
 
   simdjson::dom::parser parser;
@@ -200,8 +199,7 @@ inline auto SimdBatteryParse2(const BatteryParserWorkload& data, size_t alloc_v,
 inline auto RapidBatteryParse0(const BatteryParserWorkload& data) -> BatteryParserResult {
   BatteryParserResult result("RapidJSON", "DOM", false);
   result.timer.Start();
-  result.offsets = std::vector<int32_t>();
-  result.values = std::vector<uint64_t>();
+  // allocations
   result.timer.Split();
 
   rapidjson::StringStream stream(data.bytes.data());
@@ -233,8 +231,7 @@ inline auto RapidBatteryParse0(const BatteryParserWorkload& data) -> BatteryPars
 inline auto RapidBatteryParse1(const BatteryParserWorkload& data) -> BatteryParserResult {
   BatteryParserResult result("RapidJSON", "DOM (in situ)", false);
   result.timer.Start();
-  result.offsets = std::vector<int32_t>();
-  result.values = std::vector<uint64_t>();
+  // allocations
   result.timer.Split();
 
   rapidjson::InsituStringStream stream(const_cast<char*>(data.bytes.data()));
@@ -349,8 +346,10 @@ inline auto RapidBatteryParse2(const BatteryParserWorkload& data) -> BatteryPars
 
 class FixedSizeBatteryHandler {
  public:
-  FixedSizeBatteryHandler(size_t v_alloc, size_t o_alloc)
-      : values(std::vector<uint64_t>(v_alloc)), offsets(std::vector<int32_t>(o_alloc)) {}
+  FixedSizeBatteryHandler(size_t alloc_v, size_t alloc_o) {
+    values.reserve(alloc_v);
+    offsets.reserve(alloc_o);
+  }
 
   bool Null() {
     std::cerr << "Unexpected null." << std::endl;
@@ -444,8 +443,9 @@ auto STLParseBattery0(const BatteryParserWorkload& data, size_t alloc_v, size_t 
   BatteryParserResult result("Custom", "null", true);
 
   result.timer.Start();
-  result.offsets = std::vector<int32_t>(alloc_o);
-  result.values = std::vector<uint64_t>(alloc_v);
+  result.values.reserve(alloc_v);
+  result.offsets.reserve(alloc_o);
+  result.timer.Split();
 
   const char* battery_header = "{\"voltage\":[";
   const size_t max_uint64_len = std::to_string(std::numeric_limits<uint64_t>::max()).length();
@@ -455,8 +455,6 @@ auto STLParseBattery0(const BatteryParserWorkload& data, size_t alloc_v, size_t 
 
   size_t index = 0;
   size_t offset = 0;
-
-  result.timer.Split();
 
   while (pos < end) {
     // Check header.
@@ -568,14 +566,16 @@ auto STLParseBattery1(const BatteryParserWorkload& data) -> BatteryParserResult 
 }
 
 // assume ndjson
-auto STLParseBattery2(const BatteryParserWorkload& data) -> BatteryParserResult {
+auto STLParseBattery2(const BatteryParserWorkload& data, size_t alloc_v, size_t alloc_o) -> BatteryParserResult {
   BatteryParserResult result("Custom", "whitespaces", false);
+
   result.timer.Start();
-  result.values = std::vector<uint64_t>();
+  result.values.reserve(alloc_v);
+  result.offsets.reserve(alloc_o);
+  result.timer.Split();
 
   const auto* pos = data.bytes.data();
   const auto* end = pos + data.bytes.size();
-  result.timer.Split();
 
   // Eat any initial whitespace.
   pos = EatWhitespace(pos, end);
@@ -714,11 +714,11 @@ auto parse_battery(Iterator first, Iterator last, std::vector<uint64_t>* values,
   return result;
 }
 
-auto SpiritBatteryParse1(const BatteryParserWorkload& data) -> BatteryParserResult {
+auto SpiritBatteryParse1(const BatteryParserWorkload& data, size_t alloc_v, size_t alloc_o) -> BatteryParserResult {
   BatteryParserResult result("Boost Spirit.X3", "whitespace", false);
   result.timer.Start();
-  result.offsets = std::vector<int32_t>();
-  result.values = std::vector<uint64_t>();
+  result.values.reserve(alloc_v);
+  result.offsets.reserve(alloc_o);
   result.timer.Split();
 
   if (!parse_battery(data.bytes.begin(), data.bytes.end(), &result.values, &result.offsets)) {
