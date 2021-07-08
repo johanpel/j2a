@@ -8,15 +8,15 @@
 #include "./battery.h"
 #include "./trip.h"
 
-auto GenerateBatteryParserWorkload(const arrow::Schema& schema, size_t approx_size, bool as_array = false,
+auto GenerateBatteryParserWorkload(size_t max_array_values, size_t approx_size, bool as_array = false,
                                    size_t capacity_padding = 0, int seed = 0) -> BatteryParserWorkload {
   BatteryParserWorkload result;
 
-  result.max_array_size = get_battery_max_array_size(schema);
+  result.max_array_values = max_array_values;
 
   illex::GenerateOptions opts;
   opts.seed = seed;
-  auto gen = illex::FromArrowSchema(schema, opts);
+  auto gen = illex::FromArrowSchema(*schema_battery(max_array_values), opts);
 
   if (as_array) {
     result.bytes.push_back('[');
@@ -42,13 +42,13 @@ auto GenerateBatteryParserWorkload(const arrow::Schema& schema, size_t approx_si
   return result;
 }
 
-auto GenerateTripParserWorkload(const arrow::Schema& schema, size_t approx_size, bool as_array = false,
-                                   size_t capacity_padding = 0, int seed = 0) -> TripParserWorkload {
+auto GenerateTripParserWorkload(size_t approx_size, bool as_array = false, size_t capacity_padding = 0, int seed = 0)
+    -> TripParserWorkload {
   TripParserWorkload result;
 
   illex::GenerateOptions opts;
   opts.seed = seed;
-  auto gen = illex::FromArrowSchema(schema, opts);
+  auto gen = illex::FromArrowSchema(*schema_trip(), opts);
 
   if (as_array) {
     result.bytes.push_back('[');

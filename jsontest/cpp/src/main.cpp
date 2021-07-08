@@ -30,11 +30,11 @@ void PrintResult(std::ostream* o, const BatteryParserWorkload& in, const Battery
   *o << (out.output_pre_allocated ? "true" : "false") << ",";
   *o << in.num_jsons << ",";
   *o << in.num_bytes << ",";
-  *o << out.num_bytes << ",";
+  *o << out.num_bytes_out << ",";
   for (const auto& s : out.timer.seconds()) {
     *o << s << ",";
   }
-  *o << in.max_array_size;
+  *o << in.max_array_values;
   *o << std::endl;
 }
 
@@ -78,8 +78,7 @@ auto battery_bench(const size_t approx_size, const size_t values_end, const std:
     size_t max_num_values = values[iv];
     putong::Timer t_gen(true);
     // create workload
-    auto schema = schema_battery(max_num_values);
-    auto workload = GenerateBatteryParserWorkload(*schema, approx_size, false, simdjson::SIMDJSON_PADDING);
+    auto workload = GenerateBatteryParserWorkload(max_num_values, approx_size, false, simdjson::SIMDJSON_PADDING);
 
     t_gen.Stop();
     fmt::print(
@@ -110,8 +109,7 @@ auto battery_bench(const size_t approx_size, const size_t values_end, const std:
     // custom parsing functions
     std::cout << "Custom " << std::flush;
     if (with_minified) JSONTEST_BENCH(STLParseBattery0(inputs.back(), expected_values, expected_offsets));
-    if (with_minified) JSONTEST_BENCH(STLParseBattery1(inputs.back()));
-    JSONTEST_BENCH(STLParseBattery2(inputs.back(), expected_values, expected_offsets));
+    JSONTEST_BENCH(STLParseBattery1(inputs.back(), expected_values, expected_offsets));
 
     // parser combinators
     std::cout << "Spirit " << std::flush;
@@ -144,7 +142,7 @@ auto trip_bench(const size_t approx_size, const std::string& output_file, const 
   putong::Timer t_gen(true);
   // create workload
   auto schema = schema_trip();
-  auto workload = GenerateTripParserWorkload(*schema, approx_size, false, simdjson::SIMDJSON_PADDING);
+  auto workload = GenerateTripParserWorkload(approx_size, false, simdjson::SIMDJSON_PADDING);
 
   t_gen.Stop();
   fmt::print("Schema: trip, JSONs: {:8}, Size: {:.2f} MiB, Generated in: {:.2e} s. ", workload.num_jsons,
@@ -162,7 +160,6 @@ auto trip_bench(const size_t approx_size, const std::string& output_file, const 
       std::dynamic_pointer_cast<arrow::StringArray>(outputs.back().batch->GetColumnByName("timestamp"))->total_values_length();
 
   JSONTEST_BENCH(SimdTripParse1(inputs.back(), expected_rows, expected_ts_values));
-  // JSONTEST_BENCH(SimdBatteryParse2(inputs.back(), expected_values, expected_offsets));
 
   std::cout << "RapidJSON " << std::flush;
   // JSONTEST_BENCH(RapidBatteryParse0(inputs.back()));

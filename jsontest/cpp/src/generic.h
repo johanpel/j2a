@@ -1,5 +1,7 @@
 #pragma once
 
+#include <arrow/api.h>
+
 inline auto EatWhitespace(const char* pos, const char* end) -> const char* {
   // Whitespace includes: space, line feed, carriage return, character tabulation
   // const char ws[] = {' ', '\t', '\n', '\r'};
@@ -44,9 +46,10 @@ inline auto EatMemberKey(const char* pos, const char* end, const char* key) -> c
   return pos;
 }
 
-template <typename T>
-inline auto EatPrimitive(const char* pos, const char* end, T* dest) -> const char* {
-  auto fc_result = std::from_chars<T>(pos, end, *dest);
+// todo: figure out how to use NumericBuilder<T> and from_chars<T> together with the same T so this can be a template function
+inline auto EatUInt64(const char* pos, const char* end, arrow::UInt64Builder* builder) -> const char* {
+  uint64_t val;
+  auto fc_result = std::from_chars<uint64_t>(pos, end, val);
   switch (fc_result.ec) {
     default:
       break;
@@ -55,12 +58,14 @@ inline auto EatPrimitive(const char* pos, const char* end, T* dest) -> const cha
     case std::errc::result_out_of_range:
       throw std::runtime_error("Value out of range:" + std::string(pos, end));
   }
+  builder->Append(val);
   return fc_result.ptr;
 }
 
-template <typename T>
-inline auto EatPrimitiveArray(const char* pos, const char* end, std::vector<T>* dest, size_t max_prim_len = 12) -> const char* {
+inline auto EatUInt64Array(const char* pos, const char* end, arrow::ListBuilder* list_builder,
+                           arrow::UInt64Builder* values_builder) -> const char* {
   pos = EatArrayStart(pos, end);  // [
+  list_builder->Append();
   // Scan values
   while (true) {
     pos = EatWhitespace(pos, end);
@@ -71,8 +76,7 @@ inline auto EatPrimitiveArray(const char* pos, const char* end, std::vector<T>* 
       break;
     } else {  // Parse values
       uint64_t val = 0;
-      pos = EatPrimitive<uint64_t>(pos, end, &val);
-      dest->push_back(val);
+      pos = EatUInt64(pos, end, values_builder);
       if (*pos == ',') {
         pos++;
       }
