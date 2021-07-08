@@ -527,7 +527,7 @@ auto STLParseBattery1(const BatteryParserWorkload& data, size_t alloc_v, size_t 
     pos = EatWhitespace(pos, end);
     pos = EatMemberKeyValueSeperator(pos, end);  // :
     pos = EatWhitespace(pos, end);
-    pos = EatUInt64Array(pos, end, list_bld, values_bld);  // e.g. [1,2,3]
+    pos = EatUInt64ArrayUnsafe(pos, end, list_bld, values_bld);  // e.g. [1,2,3]
     pos = EatWhitespace(pos, end);
     pos = EatObjectEnd(pos, end);  // }
     pos = EatWhitespace(pos, end);

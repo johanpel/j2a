@@ -171,7 +171,7 @@ auto trip_bench(const size_t approx_size, const std::string& output_file, const 
   std::cout << "Custom " << std::flush;
   // if (with_minified) JSONTEST_BENCH(STLParseBattery0(inputs.back(), expected_values, expected_offsets));
   // if (with_minified) JSONTEST_BENCH(STLParseBattery1(inputs.back()));
-  // JSONTEST_BENCH(STLParseBattery2(inputs.back()));
+  JSONTEST_BENCH(STLTripParse0(inputs.back(), expected_rows, expected_ts_values));
 
   // parser generators
   std::cout << "ANTLR4 " << std::flush;
