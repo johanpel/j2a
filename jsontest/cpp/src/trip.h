@@ -123,11 +123,6 @@ struct TripBuilder {
                                                          accel_decel->Finish().ValueOrDie(),
                                                          speed_changes->Finish().ValueOrDie()};
 
-    //    for (const auto& a : arrays) {
-    //      std::cout << a->type()->ToString() << std::endl;
-    //      std::cout << a->ToString() << std::endl;
-    //    }
-
     auto result = arrow::RecordBatch::Make(schema_trip(), arrays[0]->length(), arrays);
     assert(result != nullptr);
 
@@ -457,6 +452,91 @@ inline auto STLTripParse0(const TripParserWorkload& data, int64_t pre_alloc_rows
   result.batch = builder.Finish();
   result.Finish();
   return result;
+}
 
+// custom
+inline auto STLTripParse1(const TripParserWorkload& data, int64_t pre_alloc_rows, int64_t pre_alloc_ts_values)
+-> TripParserResult {
+  TripParserResult result("custom", "null", true);
+
+  result.timer.Start();
+  TripBuilder builder(pre_alloc_rows, pre_alloc_ts_values);
+  result.timer.Split();  // pre allocations
+
+  const auto* pos = data.bytes.data();
+  const auto* end = pos + data.bytes.size();
+
+  // Eat any initial whitespace.
+  pos = EatWhitespace(pos, end);
+
+  // Start parsing objects
+  while ((pos < end) && (pos != nullptr)) {
+    pos = EatObjectStart(pos, end);  // {
+    pos = EatWhitespace(pos, end);
+
+    pos = EatMemberKey(pos, end, "timestamp");
+    pos = EatWhitespace(pos, end);
+    pos = EatMemberKeyValueSeperator(pos, end);
+    pos = EatWhitespace(pos, end);
+    pos = EatStringWithoutEscapes(pos, end, builder.timestamp.get());
+    pos = EatWhitespace(pos, end);
+    pos = EatChar(pos, end, ',');
+
+    pos = EatUInt64MemberUnsafe(pos, end, "timezone", builder.timezone.get(), true);
+    pos = EatUInt64MemberUnsafe(pos, end, "vin", builder.vin.get(), true);
+    pos = EatUInt64MemberUnsafe(pos, end, "odometer", builder.odometer.get(), true);
+    pos = EatBoolMemberUnsafe(pos, end, "hypermiling", builder.hypermiling.get(), true);
+    pos = EatUInt64MemberUnsafe(pos, end, "avgspeed", builder.avgspeed.get(), true);
+
+    // todo: make macros
+    pos = EatUInt64FixedSizeArrayMemberUnsafe(pos, end, "sec_in_band", builder.sec_in_band.get(),
+                                              reinterpret_cast<arrow::UInt64Builder*>(builder.sec_in_band->value_builder()),
+                                              true);
+    pos = EatUInt64FixedSizeArrayMemberUnsafe(
+        pos, end, "miles_in_time_range", builder.miles_in_time_range.get(),
+        reinterpret_cast<arrow::UInt64Builder*>(builder.miles_in_time_range->value_builder()), true);
+    pos = EatUInt64FixedSizeArrayMemberUnsafe(
+        pos, end, "const_speed_miles_in_band", builder.const_speed_miles_in_band.get(),
+        reinterpret_cast<arrow::UInt64Builder*>(builder.const_speed_miles_in_band->value_builder()), true);
+    pos = EatUInt64FixedSizeArrayMemberUnsafe(
+        pos, end, "vary_speed_miles_in_band", builder.vary_speed_miles_in_band.get(),
+        reinterpret_cast<arrow::UInt64Builder*>(builder.vary_speed_miles_in_band->value_builder()), true);
+    pos =
+        EatUInt64FixedSizeArrayMemberUnsafe(pos, end, "sec_decel", builder.sec_decel.get(),
+                                            reinterpret_cast<arrow::UInt64Builder*>(builder.sec_decel->value_builder()), true);
+    pos =
+        EatUInt64FixedSizeArrayMemberUnsafe(pos, end, "sec_accel", builder.sec_accel.get(),
+                                            reinterpret_cast<arrow::UInt64Builder*>(builder.sec_accel->value_builder()), true);
+    pos = EatUInt64FixedSizeArrayMemberUnsafe(pos, end, "braking", builder.braking.get(),
+                                              reinterpret_cast<arrow::UInt64Builder*>(builder.braking->value_builder()), true);
+    pos = EatUInt64FixedSizeArrayMemberUnsafe(pos, end, "accel", builder.accel.get(),
+                                              reinterpret_cast<arrow::UInt64Builder*>(builder.accel->value_builder()), true);
+    pos = EatBoolMemberUnsafe(pos, end, "orientation", builder.orientation.get(), true);
+    pos = EatUInt64FixedSizeArrayMemberUnsafe(pos, end, "small_speed_var", builder.small_speed_var.get(),
+                                              reinterpret_cast<arrow::UInt64Builder*>(builder.small_speed_var->value_builder()),
+                                              true);
+    pos = EatUInt64FixedSizeArrayMemberUnsafe(pos, end, "large_speed_var", builder.large_speed_var.get(),
+                                              reinterpret_cast<arrow::UInt64Builder*>(builder.large_speed_var->value_builder()),
+                                              true);
+
+    pos = EatUInt64MemberUnsafe(pos, end, "accel_decel", builder.accel_decel.get(), true);
+    pos = EatUInt64MemberUnsafe(pos, end, "speed_changes", builder.speed_changes.get(), false);
+
+    pos = EatWhitespace(pos, end);
+    pos = EatObjectEnd(pos, end);  // }
+    pos = EatWhitespace(pos, end);
+    pos = EatChar(pos, end, '\n');
+
+    // The newline may be the last byte, check if we didn't reach end of input before continuing.
+    if ((pos < end) && (pos != nullptr)) {
+      pos = EatWhitespace(pos, end);
+    }
+  }
+  result.timer.Split();
+  // walk dom
+  result.timer.Split();
+
+  result.batch = builder.Finish();
+  result.Finish();
   return result;
 }

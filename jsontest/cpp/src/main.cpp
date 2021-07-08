@@ -10,6 +10,10 @@
 #include "./trip.h"
 #include "./utils.h"
 
+#ifdef J2A_CUDF
+#include "gpu/battery.h"
+#endif
+
 void PrintHeader(std::ostream* o) {
   *o << "framework,";
   *o << "api,";
@@ -116,6 +120,12 @@ auto battery_bench(const size_t approx_size, const size_t values_end, const std:
     if (with_minified) JSONTEST_BENCH(SpiritBatteryParse0(inputs.back()));
     JSONTEST_BENCH(SpiritBatteryParse1(inputs.back(), expected_values, expected_offsets));
 
+#ifdef J2A_CUDF
+    // gpus
+    std::cout << "cuDF " << std::flush;
+    JSONTEST_BENCH(gpu::cuDFBatteryParse(inputs.back()));
+#endif
+
     std::cout << std::endl;
   }
 
@@ -161,26 +171,11 @@ auto trip_bench(const size_t approx_size, const std::string& output_file, const 
 
   JSONTEST_BENCH(SimdTripParse1(inputs.back(), expected_rows, expected_ts_values));
 
-  std::cout << "RapidJSON " << std::flush;
-  // JSONTEST_BENCH(RapidBatteryParse0(inputs.back()));
-  // JSONTEST_BENCH(RapidBatteryParse1(inputs.back()));
-  // JSONTEST_BENCH(RapidBatteryParse2(inputs.back()));
-  // JSONTEST_BENCH(RapidBatteryParse3(inputs.back(), expected_values, expected_offsets));
-
   // custom parsing functions
   std::cout << "Custom " << std::flush;
   // if (with_minified) JSONTEST_BENCH(STLParseBattery0(inputs.back(), expected_values, expected_offsets));
   // if (with_minified) JSONTEST_BENCH(STLParseBattery1(inputs.back()));
   JSONTEST_BENCH(STLTripParse0(inputs.back(), expected_rows, expected_ts_values));
-
-  // parser generators
-  std::cout << "ANTLR4 " << std::flush;
-  // JSONTEST_BENCH(ANTLRBatteryParse0(inputs.back()));
-
-  // parser combinators
-  std::cout << "Spirit " << std::flush;
-  // if (with_minified) JSONTEST_BENCH(SpiritBatteryParse0(inputs.back()));
-  // JSONTEST_BENCH(SpiritBatteryParse1(inputs.back()));
 
   std::cout << std::endl;
 

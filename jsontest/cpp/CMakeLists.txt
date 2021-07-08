@@ -92,24 +92,29 @@ FetchContent_Declare(
         GIT_TAG 8.0.0)
 FetchContent_MakeAvailable(fmt)
 
-########################################################################################################## targets
+########################################################################################################## cudf
+option(J2A_CUDF OFF)
+if (J2A_CUDF)
+    find_package(cuDF 21.08.00 CONFIG REQUIRED)
+    set(CUDF cudf::cudf)
+    add_compile_definitions(J2A_CUDF)
+endif()
 
 add_compile_unit(
-        NAME jsontest
-        TYPE EXECUTABLE
-        SRCS
+    NAME jsontest
+    TYPE EXECUTABLE
+    SRCS
         src/main.cpp
-        ${ANTLR_Battery_CXX_OUTPUTS}
-        # src/schema.cpp
-        TSTS
+    TSTS
         test/test_arrow.cpp
-        DEPS
+    DEPS
         simdjson
         arrow_shared
         spdlog::spdlog
         illex::static
         CLI11::CLI11
         fmt::fmt-header-only
+        ${CUDF}
 )
 
 compile_units()
