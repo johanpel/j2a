@@ -204,13 +204,14 @@ auto trip_bench(const size_t approx_size, const std::string& output_file, const 
 }
 
 auto main(int argc, char** argv) -> int {
-  size_t approx_size;
+  constexpr size_t MiB = 1024 * 1024;
+  size_t approx_size_MiB;
   size_t values_end;
   std::string output_file;
   bool with_minified;
 
   CLI::App app{"JSON parsing benchmarks."};
-  app.add_option("-s", approx_size, "Approximate size in B of each raw JSON dataset.")->default_val(1);
+  app.add_option("-s", approx_size_MiB, "Approximate size in MiB of each raw JSON dataset.")->default_val(1);
   app.add_option("-o", output_file, "CSV output file. If not set, print to stdout.");
   app.add_option("--with_minified", with_minified, "Include implementations that assume minified JSONs.")->default_val(false);
 
@@ -223,9 +224,9 @@ auto main(int argc, char** argv) -> int {
   CLI11_PARSE(app, argc, argv);
 
   if (battery->parsed()) {
-    battery_bench(approx_size, values_end, output_file, with_minified);
+    battery_bench(approx_size_MiB * MiB, values_end, output_file, with_minified);
   }
   if (trip->parsed()) {
-    trip_bench(approx_size, output_file, with_minified);
+    trip_bench(approx_size_MiB * MiB, output_file, with_minified);
   }
 }
