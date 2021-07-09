@@ -22,6 +22,14 @@ for n in range(0, 20, 1):
                        metrics="/io/data/trip/latency/threads/metrics/cpu",
                        latency="/io/data/trip/latency/threads/latency/cpu"))
 
+            experiments.append(Experiment(threads=min(t, num_jsons),
+                                          repeats=repeats,
+                                          jsons=num_jsons,
+                                          schema='/io/trip.as',
+                                          impl='custom-trip',
+                                          metrics="/io/data/trip/latency/threads/metrics/custom",
+                                          latency="/io/data/trip/latency/threads/latency/custom"))
+
             if t == 1:
                 experiments.append(Experiment(threads=min(t, num_jsons),
                            repeats=repeats,
