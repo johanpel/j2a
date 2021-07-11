@@ -92,7 +92,7 @@ auto battery_bench(const size_t approx_size, const size_t values_end, const std:
         static_cast<double>(workload.bytes.size()) / ScaleMultiplier(Scale::Mi), t_gen.seconds());
 
     // Run experiments
-    std::cout << "simdjson " << std::flush;
+    std::cout << "simdjson (" << simdjson::builtin_implementation()->name() << ")" << std::flush;
     inputs.push_back(workload);
     outputs.push_back(SimdBatteryParse0(inputs.back()));
     auto ref = outputs.size() - 1;
@@ -205,7 +205,7 @@ auto main(int argc, char** argv) -> int {
   CLI::App app{"JSON parsing benchmarks."};
   app.add_option("-s", approx_size_MiB, "Approximate size in MiB of each raw JSON dataset.")->default_val(1);
   app.add_option("-o", output_file, "CSV output file. If not set, print to stdout.");
-  app.add_option("--with_minified", with_minified, "Include implementations that assume minified JSONs.")->default_val(false);
+  app.add_flag("--with-minified", with_minified, "Include implementations that assume minified JSONs.")->default_val(false);
 
   auto* battery = app.add_subcommand("battery");
   auto* trip = app.add_subcommand("trip");
