@@ -4,3 +4,4 @@
 *.tar.gz
 .ipynb_checkpoints
 *.as
+__pycache__
