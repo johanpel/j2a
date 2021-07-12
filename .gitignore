@@ -3,3 +3,4 @@
 *.pdf
 *.tar.gz
 .ipynb_checkpoints
+*.as
