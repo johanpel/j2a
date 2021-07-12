@@ -16,7 +16,7 @@ class Experiment:
         self.battery_parsers = battery_parsers
         if machine == "intel":
             # On the intel machine we run in a docker container
-            self.base = 'docker run --rm -it --privileged -v `pwd`:/io bolson /src/bolson bench convert'
+            self.base = 'docker run --rm -it --privileged -v `pwd`:/io bolson bench convert'
             self.paths_prefix = "/io/"
         elif machine == "power":
             # On the POWER machine we don't run in docker.

@@ -13,11 +13,13 @@ os.makedirs("data/battery/latency/threads/metrics/fpga", exist_ok=True)
 os.makedirs("data/battery/latency/threads/latency/custom", exist_ok=True)
 os.makedirs("data/battery/latency/threads/latency/arrow", exist_ok=True)
 os.makedirs("data/battery/latency/threads/latency/fpga", exist_ok=True)
+# Dirs for schemas
+os.makedirs("schemas", exist_ok=True)
 
 repeats = 32
 experiments = []
 
-battery.gen_schema("battery.as")
+battery.gen_schema("schemas/battery.as")
 
 for n in range(0, 20, 1):
     for t in range(1, multiprocessing.cpu_count() + 1):
