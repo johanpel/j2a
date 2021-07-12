@@ -1,14 +1,16 @@
 import pyarrow as pa
 
-output_schema = pa.schema([
-    pa.field("voltage", pa.list_(
-        pa.field("item", pa.uint64(), False).with_metadata(
-            {"illex_MIN": "0", "illex_MAX": "2047"})
-    ), False).with_metadata(
-        {"illex_MIN_LENGTH": "1", "illex_MAX_LENGTH": "16"}
-    )
-])
 
-pa.output_stream("battery.as").write(output_schema.serialize())
+def gen_schema(file, num_values_max=256, value_max=2047, num_values_min=0, value_min=0):
+    output_schema = pa.schema([
+        pa.field("voltage", pa.list_(
+            pa.field("item", pa.uint64(), False).with_metadata(
+                {"illex_MIN": str(value_min), "illex_MAX": str(value_max)})
+        ), False).with_metadata(
+            {"illex_MIN_LENGTH": str(num_values_min), "illex_MAX_LENGTH": str(num_values_max)}
+        )
+    ])
 
-print("Battery Status schema generated.")
+    pa.output_stream(file).write(output_schema.serialize())
+
+    print("Battery Status schema generated.")

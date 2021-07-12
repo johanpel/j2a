@@ -2,13 +2,11 @@ import os
 
 
 class Experiment:
-    # base = 'docker run --rm -it -u $(id -u):$(id -g) --privileged -v `pwd`:/io bolson /src/bolson bench convert'
-    base = 'docker run --rm -it --privileged -v `pwd`:/io bolson /src/bolson bench convert'
 
-    def __init__(self, schema, threads=1, jsons=1, repeats=1, metrics='/io/data',
-                 latency='/io/data', impl='arrow', trip_parsers=3, battery_parsers=16):
-        self.metrics = metrics
-        self.latency = latency
+    def __init__(self, schema, threads=1, jsons=1, repeats=1, metrics_path='data',
+                 latency_path='data', impl='arrow', trip_parsers=3, battery_parsers=16, machine="intel"):
+        self.metrics = metrics_path
+        self.latency = latency_path
         self.repeats = repeats
         self.threads = threads
         self.jsons = jsons
@@ -16,15 +14,27 @@ class Experiment:
         self.impl = impl
         self.trip_parsers = trip_parsers
         self.battery_parsers = battery_parsers
+        if machine == "intel":
+            # On the intel machine we run in a docker container
+            self.base = 'docker run --rm -it --privileged -v `pwd`:/io bolson /src/bolson bench convert'
+            self.paths_prefix = "/io/"
+        elif machine == "power":
+            # On the POWER machine we don't run in docker.
+            self.base = 'bolson bench convert'
+            self.paths_prefix = ""
+        else:
+            raise ValueError("Expected \"power\" or \"intel\", got {}".format(machine))
 
     def __str__(self):
         return 'Experiment{{repeats: {}, threads: {}, jsons: {}, impl:{}}}'.format(self.repeats, self.threads,
                                                                                    self.jsons, self.impl)
 
-    def run(self):
-        command = self.base + ' ' + ' '.join([
-            '--metrics {}/metrics_t{}_n{}_r{}.csv'.format(self.metrics, self.threads, self.jsons, self.repeats),
-            '--latency {}/latency_t{}_n{}_r{}.csv'.format(self.latency, self.threads, self.jsons, self.repeats),
+    def cmd(self):
+        return self.base + ' ' + ' '.join([
+            '--metrics {}{}/metrics_t{}_n{}_r{}.csv'.format(self.paths_prefix, self.metrics, self.threads, self.jsons,
+                                                            self.repeats),
+            '--latency {}{}/latency_t{}_n{}_r{}.csv'.format(self.paths_prefix, self.latency, self.threads, self.jsons,
+                                                            self.repeats),
             '--repeats {}'.format(self.repeats),
             '--threads {}'.format(self.threads),
             '--num-jsons {}'.format(self.jsons),
@@ -38,8 +48,8 @@ class Experiment:
             '--parser {}'.format(self.impl),
             '--trip-num-parsers {}'.format(self.trip_parsers),
             '--battery-num-parsers {}'.format(self.battery_parsers),
-            self.schema])
+            '{}{}'.format(self.paths_prefix, self.schema)])
 
-        print(command)
-
-        os.system(command)
+    def run(self):
+        print(self.cmd())
+        os.system(self.cmd())
