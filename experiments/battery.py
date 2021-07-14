@@ -1,7 +1,8 @@
 import pyarrow as pa
+import numpy as np
 
 
-def gen_schema(file, num_values_max=256, value_max=2047, num_values_min=0, value_min=0):
+def gen_schema(file, num_values_max=1024, value_max=np.iinfo(np.uint64).max, num_values_min=1, value_min=0):
     output_schema = pa.schema([
         pa.field("voltage", pa.list_(
             pa.field("item", pa.uint64(), False).with_metadata(
@@ -12,5 +13,3 @@ def gen_schema(file, num_values_max=256, value_max=2047, num_values_min=0, value
     ])
 
     pa.output_stream(file).write(output_schema.serialize())
-
-    print("Battery Status schema generated.")
