@@ -7,8 +7,9 @@ import argparse
 import numpy as np
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--dry", action="store_true")
-parser.add_argument("--no-fpga", action="store_true")
+parser.add_argument("--dry", action="store_true", help="Only print parameters.")
+parser.add_argument("--no-fpga", action="store_true", help="Don't run FPGA implementations.")
+parser.add_argument("--bolson", type=str, help="How to run Bolson executable, e.g. \"./bolson\"", default=None)
 args = parser.parse_args()
 
 # Dirs for overall metrics
@@ -28,7 +29,7 @@ experiments = []
 # Determine what number of threads to use
 step = 1
 if get_machine_config() == 'power':
-    step = 16
+    step = 11
 else:
     step = 4
 threads = list(range(step, multiprocessing.cpu_count() + 1, step))
@@ -67,7 +68,8 @@ for m in max_value:
                                                   latency_path="data/battery/latency/threads/latency/fpga",
                                                   file_prefix=schema_file_prefix,
                                                   machine='intel',
-                                                  hardware_parsers=16))
+                                                  hardware_parsers=16,
+                                                  bolson=args.bolson))
 
                 if get_machine_config() == 'power':
                     experiments.append(Experiment(threads=20,
@@ -79,7 +81,8 @@ for m in max_value:
                                                   latency_path="data/battery/latency/threads/latency/fpga",
                                                   file_prefix=schema_file_prefix,
                                                   machine='power',
-                                                  hardware_parsers=20))
+                                                  hardware_parsers=20,
+                                                  bolson=args.bolson))
 
             # CPU implementations
             for t in threads:
@@ -90,7 +93,8 @@ for m in max_value:
                                               input_bytes=s,
                                               metrics_path="data/battery/latency/threads/metrics/arrow",
                                               latency_path="data/battery/latency/threads/latency/arrow",
-                                              file_prefix=schema_file_prefix))
+                                              file_prefix=schema_file_prefix,
+                                              bolson=args.bolson))
 
                 # Custom implementation
                 experiments.append(Experiment(threads=t,
@@ -100,11 +104,15 @@ for m in max_value:
                                               impl='custom-battery',
                                               metrics_path="data/battery/latency/threads/metrics/custom",
                                               latency_path="data/battery/latency/threads/latency/custom",
-                                              file_prefix=schema_file_prefix))
+                                              file_prefix=schema_file_prefix,
+                                              bolson=args.bolson))
 
 if not args.dry:
     for i, e in enumerate(experiments):
         print("Progress: {}/{}\t{:.2f} %,".format(i, len(experiments), i / len(experiments) * 100))
         e.run()
+else:
+    for i, e in enumerate(experiments):
+        print(e.cmd())
 
 print("Processed {} experiment configurations.".format(len(experiments)))

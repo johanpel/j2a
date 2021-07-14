@@ -13,7 +13,7 @@ def get_machine_config():
 
 class Experiment:
     def __init__(self, schema, threads=1, input_bytes=1, repeats=1, metrics_path='data',
-                 latency_path='data', impl='arrow', hardware_parsers=16, machine='auto', file_prefix=''):
+                 latency_path='data', impl='arrow', hardware_parsers=16, machine='auto', file_prefix='', bolson=None):
         self.metrics_path = metrics_path
         self.latency_path = latency_path
         self.file_prefix = file_prefix
@@ -23,26 +23,30 @@ class Experiment:
         self.schema = schema
         self.impl = impl
         self.hardware_parsers = hardware_parsers
-        if machine == 'auto':
-            machine = get_machine_config()
+        self.paths_prefix = ""
 
-        if machine == "intel":
-            # On the intel machine we run in a docker container
-            self.base = 'docker run --rm -it --privileged -v `pwd`:/io bolson bench convert'
-            self.paths_prefix = "/io/"
-        elif machine == "power":
-            # On the POWER machine we don't run in docker.
-            self.base = 'bolson bench convert'
-            self.paths_prefix = ""
+        if bolson is None:
+            if machine == 'auto':
+                machine = get_machine_config()
+
+            if machine == "intel":
+                # On the intel machine we run in a docker container
+                self.bolson = 'docker run --rm -it --privileged -v `pwd`:/io bolson'
+                self.paths_prefix = "/io/"
+            elif machine == "power":
+                # On the POWER machine we don't run in docker.
+                self.bolson = 'bolson'
+            else:
+                raise ValueError("Expected \"power\" or \"intel\", got {}".format(machine))
         else:
-            raise ValueError("Expected \"power\" or \"intel\", got {}".format(machine))
+            self.bolson = bolson
 
     def __str__(self):
         return 'Experiment{{repeats: {}, threads: {}, json_bytes: {}, impl:{}}}'.format(self.repeats, self.threads,
                                                                                         self.input_bytes, self.impl)
 
     def cmd(self):
-        return self.base + ' ' + ' '.join([
+        return self.bolson + ' bench convert ' + ' '.join([
             '--metrics {}{}/metrics_{}_t{}_s{}_r{}.csv'.format(self.paths_prefix, self.metrics_path,
                                                                self.file_prefix, self.threads,
                                                                self.input_bytes,
