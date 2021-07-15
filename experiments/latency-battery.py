@@ -10,6 +10,7 @@ import sys
 parser = argparse.ArgumentParser()
 parser.add_argument("--dry", action="store_true", help="Only print parameters.")
 parser.add_argument("--no-fpga", action="store_true", help="Don't run FPGA implementations.")
+parser.add_argument("--no-schemas", action="store_true", help="Don't generate schemas.")
 parser.add_argument("--bolson", type=str, help="How to run Bolson executable, e.g. \"./bolson\"", default=None)
 args = parser.parse_args()
 
@@ -49,7 +50,8 @@ for m in max_value:
     for n in max_num_values:
         schema_file_prefix = 'm{}_n{}'.format(m, n)
         schema_file = 'schemas/battery_{}.as'.format(schema_file_prefix)
-        battery.gen_schema(schema_file, value_max=m, num_values_max=n)
+        if not args.no_schemas:
+            battery.gen_schema(schema_file, value_max=m, num_values_max=n)
 
         for s in input_size:
             # FPGA implementations.
