@@ -5,6 +5,7 @@ import multiprocessing
 import battery
 import argparse
 import numpy as np
+import sys
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--dry", action="store_true", help="Only print parameters.")
@@ -36,16 +37,11 @@ threads = list(range(step, multiprocessing.cpu_count() + 1, step))
 threads.insert(0, 1)
 
 # Sweep from 1 MiB, 128 MiB, 1 GiB, 16 GiB.
-input_size = [int(2 ** x / repeats) for x in [20, 27, 30, 34]]
+input_size = [int(2 ** x / repeats) for x in [20, 27, 30, 35]]
 # Sweep over all basic integer types for max. value.
 max_value = [np.iinfo(x).max for x in [np.uint8, np.uint16, np.uint32, np.uint64]]
 # Sweep over various number of array values.
 max_num_values = [1, 8, 64, 512]
-
-print("Input sizes          : {}".format(input_size))
-print("Max values           : {}".format(max_value))
-print("Max number of values : {}".format(max_num_values))
-print("Thread counts        : {}".format(threads))
 
 # Sweep value size from uint8 to uint64 number of digits.
 for m in max_value:
@@ -110,9 +106,15 @@ for m in max_value:
 if not args.dry:
     for i, e in enumerate(experiments):
         print("Progress: {}/{}\t{:.2f} %,".format(i, len(experiments), i / len(experiments) * 100))
+        sys.stdout.flush()
         e.run()
 else:
     for i, e in enumerate(experiments):
         print(e.cmd())
 
 print("Processed {} experiment configurations.".format(len(experiments)))
+
+print("Input sizes          : {}".format(input_size))
+print("Max values           : {}".format(max_value))
+print("Max number of values : {}".format(max_num_values))
+print("Thread counts        : {}".format(threads))
