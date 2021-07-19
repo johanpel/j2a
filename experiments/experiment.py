@@ -61,8 +61,8 @@ class Experiment:
             # '--custom-battery-pre-alloc-offsets {}'.format(1024 * 1024),
             # '--custom-battery-pre-alloc-values {}'.format(int(1024 * 1024 * 1024 / 8)),
             # Reserve about 32 GiB in total for trip report schema
-            '--custom-trip-pre-alloc-records {}'.format((8 * 2 ** 30 / self.threads)),
-            '--custom-trip-pre-alloc-timestamp-values {}'.format((24 * 2 ** 30 / self.threads)),
+            '--custom-trip-pre-alloc-records {}'.format(int(8 * 2 ** 30 / self.threads)),
+            '--custom-trip-pre-alloc-timestamp-values {}'.format(int(24 * 2 ** 30 / self.threads)),
             '--parser {}'.format(self.impl),
             '--trip-num-parsers {}'.format(self.hardware_parsers),
             '--battery-num-parsers {}'.format(self.hardware_parsers),
