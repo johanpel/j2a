@@ -37,10 +37,10 @@ else:
 threads = list(range(step, multiprocessing.cpu_count() + 1, step))
 threads.insert(0, 1)
 
-# Sweep from 1 MiB, 128 MiB, 1 GiB, 16 GiB.
-input_size = [int(2 ** x / repeats) for x in [20, 27, 30, 35]]
+# Sweep from 16 MiB, 128 MiB, 1 GiB, 8 GiB.
+input_size = [int(2 ** x) for x in [24, 27, 30, 33]]
 # Sweep over all basic integer types for max. value.
-max_value = [np.iinfo(x).max for x in [np.uint8, np.uint16, np.uint32, np.uint64]]
+max_value = [np.iinfo(x).max for x in [np.uint64]]  # [np.uint8, np.uint16, np.uint32, np.uint64]]
 # Sweep over various number of array values.
 max_num_values = [1, 8, 64, 512]
 
@@ -116,7 +116,7 @@ else:
 
 print("Processed {} experiment configurations.".format(len(experiments)))
 
-print("Input sizes          : {}".format(input_size))
+print("Input sizes (MiB)    : {}".format([x / (2 ** 20) for x in input_size]))
 print("Max values           : {}".format(max_value))
 print("Max number of values : {}".format(max_num_values))
 print("Thread counts        : {}".format(threads))
