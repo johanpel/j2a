@@ -1,5 +1,6 @@
 import numpy as np
 
+
 def gen_schema(file, num_values_max=1024, value_max=np.iinfo(np.uint64).max, num_values_min=1, value_min=0):
     import pyarrow as pa
 

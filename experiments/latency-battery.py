@@ -10,6 +10,7 @@ import sys
 parser = argparse.ArgumentParser()
 parser.add_argument("--dry", action="store_true", help="Only print parameters.")
 parser.add_argument("--no-fpga", action="store_true", help="Don't run FPGA implementations.")
+parser.add_argument("--no-cpu", action="store_true", help="Don't run CPU implementations.")
 parser.add_argument("--no-schemas", action="store_true", help="Don't generate schemas.")
 parser.add_argument("--bolson", type=str, help="How to run Bolson executable, e.g. \"./bolson\"", default=None)
 args = parser.parse_args()
@@ -83,27 +84,28 @@ for m in max_value:
                                                   bolson=args.bolson))
 
             # CPU implementations
-            for t in threads:
-                # Arrow default implementation
-                experiments.append(Experiment(schema=schema_file,
-                                              threads=t,
-                                              repeats=repeats,
-                                              input_bytes=s,
-                                              metrics_path="data/battery/latency/threads/metrics/arrow",
-                                              latency_path="data/battery/latency/threads/latency/arrow",
-                                              file_prefix=schema_file_prefix,
-                                              bolson=args.bolson))
+            if not args.no_cpu:
+                for t in threads:
+                    # Arrow default implementation
+                    experiments.append(Experiment(schema=schema_file,
+                                                  threads=t,
+                                                  repeats=repeats,
+                                                  input_bytes=s,
+                                                  metrics_path="data/battery/latency/threads/metrics/arrow",
+                                                  latency_path="data/battery/latency/threads/latency/arrow",
+                                                  file_prefix=schema_file_prefix,
+                                                  bolson=args.bolson))
 
-                # Custom implementation
-                experiments.append(Experiment(threads=t,
-                                              repeats=repeats,
-                                              input_bytes=s,
-                                              schema=schema_file,
-                                              impl='custom-battery',
-                                              metrics_path="data/battery/latency/threads/metrics/custom",
-                                              latency_path="data/battery/latency/threads/latency/custom",
-                                              file_prefix=schema_file_prefix,
-                                              bolson=args.bolson))
+                    # Custom implementation
+                    experiments.append(Experiment(threads=t,
+                                                  repeats=repeats,
+                                                  input_bytes=s,
+                                                  schema=schema_file,
+                                                  impl='custom-battery',
+                                                  metrics_path="data/battery/latency/threads/metrics/custom",
+                                                  latency_path="data/battery/latency/threads/latency/custom",
+                                                  file_prefix=schema_file_prefix,
+                                                  bolson=args.bolson))
 
 if not args.dry:
     for i, e in enumerate(experiments):
