@@ -54,9 +54,11 @@ for m in max_value:
         # FPGA implementations.
         if not args.no_fpga:
             if get_machine_config() == 'intel':
-                experiments.append(Experiment(threads=16,
+                experiments.append(Experiment(threads=1,
                                               repeats=repeats,
-                                              input_bytes=s,
+                                              # need to allocate exactly 1 GiB for each input due to OPAE limitations
+                                              input_bytes=3 * (2 ** 30),
+                                              json_bytes=s,
                                               schema=schema_file,
                                               impl='opae-trip',
                                               metrics_path="data/trip/latency/threads/metrics/fpga",
