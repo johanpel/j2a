@@ -63,7 +63,7 @@ for m in max_value:
                                               latency_path="data/trip/latency/threads/latency/fpga",
                                               file_prefix=schema_file_prefix,
                                               machine='intel',
-                                              hardware_parsers=16,
+                                              hardware_parsers=3,
                                               bolson=args.bolson))
 
             if get_machine_config() == 'power':
@@ -76,7 +76,7 @@ for m in max_value:
                                               latency_path="data/trip/latency/threads/latency/fpga",
                                               file_prefix=schema_file_prefix,
                                               machine='power',
-                                              hardware_parsers=20,
+                                              hardware_parsers=8,
                                               bolson=args.bolson))
 
         # CPU implementations
