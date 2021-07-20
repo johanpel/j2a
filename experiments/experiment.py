@@ -20,7 +20,7 @@ class Experiment:
         self.repeats = repeats
         self.threads = threads
         self.input_bytes = input_bytes
-        self.json_bytes = json_bytes
+        self.json_bytes = json_bytes if json_bytes else input_bytes
         self.schema = schema
         self.impl = impl
         self.hardware_parsers = hardware_parsers
@@ -60,7 +60,7 @@ class Experiment:
             '--threads {}'.format(self.threads),
             '--input-buffers-capacity {}'.format(self.input_bytes),
             # use input bytes if no json bytes are supplied
-            '--total-json-bytes {}'.format(self.json_bytes if self.json_bytes else self.input_bytes),
+            '--total-json-bytes {}'.format(self.json_bytes),
             '--parser {}'.format(self.impl),
             '--trip-num-parsers {}'.format(self.hardware_parsers),
             '--battery-num-parsers {}'.format(self.hardware_parsers),
