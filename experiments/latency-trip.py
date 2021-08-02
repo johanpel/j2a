@@ -2,7 +2,7 @@
 from experiment import Experiment, get_machine_config
 import os
 import multiprocessing
-import tripreport
+import tripreport_reduced as tr
 import argparse
 import numpy as np
 import sys
@@ -13,6 +13,7 @@ parser.add_argument("--no-fpga", action="store_true", help="Don't run FPGA imple
 parser.add_argument("--no-cpu", action="store_true", help="Don't run CPU implementations.")
 parser.add_argument("--no-schemas", action="store_true", help="Don't generate schemas.")
 parser.add_argument("--bolson", type=str, help="How to run Bolson executable, e.g. \"./bolson\"", default=None)
+parser.add_argument("--num-parsers", type=int, help="Number of parsers", default=8)
 args = parser.parse_args()
 
 # Dirs for overall metrics
@@ -26,17 +27,19 @@ os.makedirs("data/trip/latency/threads/latency/fpga", exist_ok=True)
 # Dirs for schemas
 os.makedirs("schemas", exist_ok=True)
 
-repeats = 8
 experiments = []
 
 # Determine what number of threads to use
 step = 1
 if get_machine_config() == 'power':
-    step = 11
+    step = 16
 else:
     step = 4
 threads = list(range(step, multiprocessing.cpu_count() + 1, step))
 threads.insert(0, 1)
+
+repeats = 8
+repeat_size_mod = [1, 1, 4, 32]
 
 # Sweep from 16 MiB, 128 MiB, 1 GiB, 8 GiB.
 input_size = [int(2 ** x) for x in [24, 27, 30, 33]]
@@ -48,30 +51,32 @@ for m in max_value:
     schema_file_prefix = 'm{}'.format(m)
     schema_file = 'schemas/trip_{}.as'.format(schema_file_prefix)
     if not args.no_schemas:
-        tripreport.gen_schema(schema_file, value_max=m)
+        tr.gen_schema(schema_file, value_max=m)
 
-    for s in input_size:
+    for i, s in enumerate(input_size):
         # FPGA implementations.
         if not args.no_fpga:
             if get_machine_config() == 'intel':
                 experiments.append(Experiment(threads=1,
                                               repeats=repeats,
-                                              # need to allocate exactly 1 GiB for each input due to OPAE limitations
-                                              input_bytes=3 * (2 ** 30),
                                               json_bytes=s,
+                                              repeat_size_mod=repeat_size_mod[i],
+                                              # need to allocate exactly 1 GiB for each input due to OPAE limitations
+                                              input_bytes=args.num_parsers * (2 ** 30),
                                               schema=schema_file,
                                               impl='opae-trip',
                                               metrics_path="data/trip/latency/threads/metrics/fpga",
                                               latency_path="data/trip/latency/threads/latency/fpga",
                                               file_prefix=schema_file_prefix,
                                               machine='intel',
-                                              hardware_parsers=3,
+                                              hardware_parsers=args.num_parsers,
                                               bolson=args.bolson))
 
             if get_machine_config() == 'power':
-                experiments.append(Experiment(threads=20,
+                experiments.append(Experiment(threads=1,
                                               repeats=repeats,
                                               input_bytes=s,
+                                              repeat_size_mod=repeat_size_mod[i],
                                               schema=schema_file,
                                               impl='fpga-trip',
                                               metrics_path="data/trip/latency/threads/metrics/fpga",
@@ -89,6 +94,7 @@ for m in max_value:
                                               threads=t,
                                               repeats=repeats,
                                               input_bytes=s,
+                                              repeat_size_mod=repeat_size_mod[i],
                                               metrics_path="data/trip/latency/threads/metrics/arrow",
                                               latency_path="data/trip/latency/threads/latency/arrow",
                                               file_prefix=schema_file_prefix,
@@ -98,6 +104,7 @@ for m in max_value:
                 experiments.append(Experiment(threads=t,
                                               repeats=repeats,
                                               input_bytes=s,
+                                              repeat_size_mod=repeat_size_mod[i],
                                               schema=schema_file,
                                               impl='custom-trip',
                                               metrics_path="data/trip/latency/threads/metrics/custom",

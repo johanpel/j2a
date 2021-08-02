@@ -13,7 +13,8 @@ def get_machine_config():
 
 class Experiment:
     def __init__(self, schema, threads=1, input_bytes=1, json_bytes=None, repeats=1, metrics_path='data',
-                 latency_path='data', impl='arrow', hardware_parsers=16, machine='auto', file_prefix='', bolson=None):
+                 latency_path='data', impl='arrow', hardware_parsers=16, machine='auto', file_prefix='', bolson=None,
+                 repeat_size_mod=1):
         self.metrics_path = metrics_path
         self.latency_path = latency_path
         self.file_prefix = file_prefix
@@ -25,6 +26,8 @@ class Experiment:
         self.impl = impl
         self.hardware_parsers = hardware_parsers
         self.paths_prefix = ""
+        self.modified_json_bytes = int(self.json_bytes / repeat_size_mod)
+        self.modified_repeats = int(self.repeats * repeat_size_mod)
 
         if bolson is None:
             if machine == 'auto':
@@ -43,8 +46,10 @@ class Experiment:
             self.bolson = bolson
 
     def __str__(self):
-        return 'Experiment{{repeats: {}, threads: {}, json_bytes: {}, impl:{}}}'.format(self.repeats, self.threads,
-                                                                                        self.json_bytes, self.impl)
+        return 'Experiment{{repeats: {}, threads: {}, json_bytes: {}, impl:{}}}'.format(self.modified_repeats,
+                                                                                        self.threads,
+                                                                                        self.modified_json_bytes,
+                                                                                        self.impl)
 
     def cmd(self):
         return self.bolson + ' bench convert ' + ' '.join([
@@ -56,11 +61,11 @@ class Experiment:
                                                                self.file_prefix, self.threads,
                                                                self.json_bytes,
                                                                self.repeats),
-            '--repeats {}'.format(self.repeats),
+            '--repeats {}'.format(self.modified_repeats),
             '--threads {}'.format(self.threads),
             '--input-buffers-capacity {}'.format(self.input_bytes),
             # use input bytes if no json bytes are supplied
-            '--total-json-bytes {}'.format(self.json_bytes),
+            '--total-json-bytes {}'.format(self.modified_json_bytes),
             '--parser {}'.format(self.impl),
             '--trip-num-parsers {}'.format(self.hardware_parsers),
             '--battery-num-parsers {}'.format(self.hardware_parsers),
