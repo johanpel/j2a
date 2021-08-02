@@ -32,7 +32,7 @@ experiments = []
 # Determine what number of threads to use
 step = 1
 if get_machine_config() == 'power':
-    step = 11
+    step = 16
 else:
     step = 4
 threads = list(range(step, multiprocessing.cpu_count() + 1, step))
