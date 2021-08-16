@@ -145,7 +145,8 @@ auto battery_bench(const size_t approx_size, const size_t values_end, const std:
   return EXIT_SUCCESS;
 }
 
-auto trip_bench(const size_t approx_size, const std::string& output_file, const bool with_minified) {
+auto trip_bench(const size_t approx_size, const std::string& output_file, const bool with_minified,
+                const std::vector<const std::string>& a) {
   std::vector<TripParserWorkload> inputs;
   std::vector<TripParserResult> outputs;
 

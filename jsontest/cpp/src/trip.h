@@ -456,7 +456,7 @@ inline auto STLTripParse0(const TripParserWorkload& data, int64_t pre_alloc_rows
 
 // custom
 inline auto STLTripParse1(const TripParserWorkload& data, int64_t pre_alloc_rows, int64_t pre_alloc_ts_values)
--> TripParserResult {
+    -> TripParserResult {
   TripParserResult result("custom", "null", true);
 
   result.timer.Start();
@@ -540,3 +540,60 @@ inline auto STLTripParse1(const TripParserWorkload& data, int64_t pre_alloc_rows
   result.Finish();
   return result;
 }
+
+class UnsafeRapidTripHandler {
+ public:
+  explicit UnsafeRapidTripHandler(int64_t pre_alloc_rows = 0, int64_t pre_alloc_ts_values = 0)
+      : builder(pre_alloc_rows, pre_alloc_ts_values) {}
+
+  bool Null() {
+    std::cerr << "Unexpected null." << std::endl;
+    return false;
+  }
+  bool Bool(bool b) {
+    std::cerr << "Unexpected bool." << std::endl;
+    return false;
+  }
+  bool Int(int i) {
+    std::cerr << "Unexpected int." << std::endl;
+    return false;
+  }
+  bool Uint(unsigned i) {
+    values_bld->UnsafeAppend(static_cast<uint64_t>(i));
+    return true;
+  }
+  bool Int64(int64_t i) {
+    std::cerr << "Unexpected int64." << std::endl;
+    return false;
+  }
+  bool Uint64(uint64_t i) {
+    values_bld->UnsafeAppend(i);
+    return true;
+  }
+  bool Double(double d) {
+    std::cerr << "Unexpected double." << std::endl;
+    return false;
+  }
+  bool RawNumber(const char* str, rapidjson::SizeType length, bool copy) {
+    std::cerr << "Unexpected raw number." << std::endl;
+    return false;
+  }
+  bool String(const char* str, rapidjson::SizeType length, bool copy) {
+    std::cerr << "Unexpected string." << std::endl;
+    return false;
+  }
+  bool StartObject() { return true; }
+  bool Key(const char* str, rapidjson::SizeType length, bool copy) { return true; }
+  bool EndObject(rapidjson::SizeType memberCount) { return true; }
+  bool StartArray() {
+    list_bld->Append();
+    return true;
+  }
+  bool EndArray(rapidjson::SizeType elementCount) { return true; }
+
+  TripBuilder builder;
+
+  arrow::FixedSizeListBuilder* current_list_bld;
+  arrow::UInt64Builder* current_uint64_bld;
+  arrow::BooleanBuilder
+};
